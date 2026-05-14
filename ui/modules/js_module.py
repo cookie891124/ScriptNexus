@@ -233,6 +233,7 @@ class JsModule(QWidget):
 
         # ---- Main content: splitter ----
         splitter = QSplitter(Qt.Orientation.Horizontal)
+        splitter.setHandleWidth(1)
 
         # === Left: script list ===
         list_panel = QWidget()
@@ -254,6 +255,7 @@ class JsModule(QWidget):
 
         # === Right: vertical split (details top / preview bottom) ===
         vsplit = QSplitter(Qt.Orientation.Vertical)
+        vsplit.setHandleWidth(1)
 
         # -- Details panel --
         detail_panel = QWidget()

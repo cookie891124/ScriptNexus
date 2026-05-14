@@ -90,6 +90,15 @@ class _DebugFilter(QObject):
         if widget is None:
             return False
 
+        # If widgetAt returns None, fallback to childAt on active window
+        if widget is None:
+            aw = QApplication.activeWindow()
+            if aw:
+                local_pos = aw.mapFromGlobal(pos)
+                widget = aw.childAt(local_pos)
+        if widget is None:
+            return False
+
         wid = id(widget)
         if wid == self._last_widget_id:
             return False
