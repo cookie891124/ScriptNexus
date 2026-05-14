@@ -24,11 +24,11 @@ class ScriptDialog(QDialog):
 
     def _setup_ui(self):
         self.setWindowTitle("编辑 Chrome JS脚本" if self.is_edit_mode else "新增 Chrome JS脚本")
-        self.setMinimumSize(680, 420)
+        self.setMinimumSize(680, 520)
         self.setModal(True)
 
         layout = QVBoxLayout()
-        layout.setSpacing(12)
+        layout.setSpacing(10)
         layout.setContentsMargins(20, 20, 20, 20)
 
         # Name
@@ -37,13 +37,6 @@ class ScriptDialog(QDialog):
         self.name_input.setPlaceholderText("例如：导出表格CSV、显示密码")
         self.name_input.setMinimumHeight(32)
         layout.addWidget(self.name_input)
-
-        # URL (wide)
-        layout.addWidget(QLabel("脚本 URL (bookmarklet 或远程地址)"))
-        self.url_input = QLineEdit()
-        self.url_input.setPlaceholderText("javascript:(function(){ /* your code */ })()")
-        self.url_input.setMinimumHeight(32)
-        layout.addWidget(self.url_input)
 
         # Folder + Position row
         row = QHBoxLayout()
@@ -75,15 +68,19 @@ class ScriptDialog(QDialog):
 
         layout.addLayout(row)
 
+        # URL (multi-line, below folder)
+        layout.addWidget(QLabel("脚本 URL (bookmarklet 或远程地址)"))
+        self.url_input = QTextEdit()
+        self.url_input.setFont(QFont("Consolas", 10))
+        self.url_input.setPlaceholderText("javascript:(function(){ /* your code */ })()")
+        self.url_input.setMinimumHeight(120)
+        self.url_input.setAcceptRichText(False)
+        layout.addWidget(self.url_input, 1)
+
         # Tip
-        tip = QLabel("Tip: bookmarklet 格式 javascript:(function(){...})()")
+        tip = QLabel("Tip: bookmarklet 格式 javascript:(function(){...})()；支持 http/https/file 协议")
         tip.setStyleSheet("color: #888; font-size: 11px;")
         layout.addWidget(tip)
-
-        # URL not http/https warning - relax for javascript: bookmarkets
-        tip2 = QLabel("支持 javascript: / http: / https: / file: 协议")
-        tip2.setStyleSheet("color: #999; font-size: 10px;")
-        layout.addWidget(tip2)
 
         layout.addStretch()
 
@@ -109,7 +106,7 @@ class ScriptDialog(QDialog):
     def _load_data(self):
         if self.is_edit_mode and self.script_data:
             self.name_input.setText(self.script_data.get("name", ""))
-            self.url_input.setText(self.script_data.get("url", ""))
+            self.url_input.setPlainText(self.script_data.get("url", ""))
             folder = self.script_data.get("parent_folder", "")
             idx = self.folder_combo.findText(folder)
             if idx >= 0:
@@ -124,7 +121,7 @@ class ScriptDialog(QDialog):
             QMessageBox.warning(self, "警告", "请输入脚本名称")
             return
 
-        url = self.url_input.text().strip()
+        url = self.url_input.toPlainText().strip()
         if not url:
             QMessageBox.warning(self, "警告", "请输入脚本 URL")
             return
@@ -139,7 +136,7 @@ class ScriptDialog(QDialog):
 
         return {
             "name": self.name_input.text().strip(),
-            "url": self.url_input.text().strip(),
+            "url": self.url_input.toPlainText().strip(),
             "parent_folder": self.folder_combo.currentText().strip(),
             "position": position,
         }
@@ -212,10 +209,13 @@ class JsModule(QWidget):
         tb.addStretch()
         layout.addLayout(tb)
 
-        # ---- Path status (read-only, set from global config) ----
+        # ---- Path status ----
         path_row = QHBoxLayout()
+        path_row.setContentsMargins(0, 0, 0, 0)
         path_row.setSpacing(4)
-        path_row.addWidget(QLabel("书签路径："))
+        pl = QLabel("书签路径：")
+        pl.setStyleSheet("color: #666; font-size: 11px;")
+        path_row.addWidget(pl)
         self.path_label = QLabel("未设置")
         self.path_label.setStyleSheet("color: #888; font-size: 11px;")
         path_row.addWidget(self.path_label)
