@@ -158,7 +158,6 @@ class MainWindow(QMainWindow):
 
         # Stacked widget for pages
         self.stack = QStackedWidget()
-        self.stack.setContentsMargins(0, 0, 0, 0)
         self.stack.setStyleSheet("QStackedWidget { background-color: white; }")
 
         # Add pages - use placeholder widgets, modules initialized on demand
@@ -185,6 +184,9 @@ class MainWindow(QMainWindow):
         js_layout.setContentsMargins(0, 0, 0, 0)
         self.js_page.setLayout(js_layout)
         self.stack.addWidget(self.js_page)
+
+        # Eliminate QStackedLayout's default 9px margins (must do after adding pages)
+        self.stack.layout().setContentsMargins(0, 0, 0, 0)
 
         content_layout.addWidget(self.stack)
         content_widget.setLayout(content_layout)
