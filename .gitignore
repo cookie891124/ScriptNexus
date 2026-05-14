@@ -1,0 +1,40 @@
+# Build artifacts
+dist/
+build/
+*.spec.bak
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node
+node_modules/
+package-lock.json
+
+# Test artifacts
+playwright-report/
+test-results/
+
+# Temp files
+scripts/_temp_script_*.py
+*.temp_clean.csv
+
+# Database files (local dev)
+data/*.db
+
+# Claude
+.claude/
+
+# Secrets
+.env
+*.secret
