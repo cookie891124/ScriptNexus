@@ -329,28 +329,16 @@ class JsService:
         if "children" not in bookmark_bar:
             bookmark_bar["children"] = []
 
-        # Build managed bookmarks for the target folder
+        # Find or create the top-level JS Scripts folder
         now = datetime.now().isoformat()
-        managed_items = []
-        for script in scripts:
-            managed_items.append({
-                "date_added": now,
-                "id": str(script["id"]),
-                "name": script["name"],
-                "type": "url",
-                "url": script["url"],
-            })
-
-        # Find existing target folder or create one
-        target_node = None
+        root_node = None
         for child in bookmark_bar["children"]:
             if child.get("name") == target_folder and child.get("type") == "folder":
-                target_node = child
+                root_node = child
                 break
 
-        if target_node is None:
-            # Create new folder node at the TOP of bookmark bar
-            target_node = {
+        if root_node is None:
+            root_node = {
                 "children": [],
                 "date_added": now,
                 "date_modified": now,
@@ -358,11 +346,49 @@ class JsService:
                 "name": target_folder,
                 "type": "folder",
             }
-            bookmark_bar["children"].insert(0, target_node)
+            bookmark_bar["children"].insert(0, root_node)
 
-        # Replace the folder's children with managed bookmarks
-        target_node["children"] = managed_items
-        target_node["date_modified"] = now
+        # Group scripts: root folder vs subfolders
+        root_items = []
+        subfolders: Dict[str, list] = {}
+        for script in scripts:
+            sub = script.get("parent_folder", "").strip()
+            entry = {
+                "date_added": now,
+                "id": str(script["id"]),
+                "name": script["name"],
+                "type": "url",
+                "url": script["url"],
+            }
+            if sub:
+                subfolders.setdefault(sub, []).append(entry)
+            else:
+                root_items.append(entry)
+
+        # Build root node children: direct items + subfolder nodes
+        root_node["children"] = root_items
+
+        for sub_name, items in subfolders.items():
+            # Reuse existing subfolder or create new
+            sub_node = None
+            for child in root_node.get("children", []):
+                if child.get("name") == sub_name and child.get("type") == "folder":
+                    sub_node = child
+                    break
+            if sub_node is None:
+                sub_node = {
+                    "children": [],
+                    "date_added": now,
+                    "date_modified": now,
+                    "guid": f"{target_folder}/{sub_name}",
+                    "name": sub_name,
+                    "type": "folder",
+                }
+                root_node["children"].append(sub_node)
+            sub_node["children"] = items
+            sub_node["date_modified"] = now
+
+        root_node["date_modified"] = now
 
         # Backup existing before writing
         if os.path.exists(bookmarks_file):
