@@ -158,6 +158,7 @@ class MainWindow(QMainWindow):
 
         # Stacked widget for pages
         self.stack = QStackedWidget()
+        self.stack.setContentsMargins(0, 0, 0, 0)
         self.stack.setStyleSheet("QStackedWidget { background-color: white; }")
 
         # Add pages - use placeholder widgets, modules initialized on demand
