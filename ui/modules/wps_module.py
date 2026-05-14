@@ -20,7 +20,7 @@ from PyQt6.QtWidgets import QGraphicsItem
 
 # ===== JavaScript Syntax Highlighter =====
 
-class JsSyntaxHighlighter(QSyntaxHighlighter):
+class JsaSyntaxHighlighter(QSyntaxHighlighter):
     """JavaScript syntax highlighter for code editor."""
 
     def __init__(self, document):
@@ -756,10 +756,10 @@ class RibbonTreePanel(QWidget):
             self.refresh_all()
 
 
-# ===== JS Macro Panel =====
+# ===== JSA Macro Panel =====
 
-class JsMacroPanel(QWidget):
-    """Panel for editing JS macro code with syntax highlighting."""
+class JsaMacroPanel(QWidget):
+    """Panel for browsing JSA macro code (read-only)."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -780,7 +780,7 @@ class JsMacroPanel(QWidget):
         # Header row - 标题和工具栏
         header_layout = QHBoxLayout()
 
-        header = QLabel("JS宏代码浏览区")
+        header = QLabel("JSA宏代码浏览区")
         header.setStyleSheet("""
             QLabel {
                 font-weight: bold;
@@ -793,7 +793,7 @@ class JsMacroPanel(QWidget):
         header_layout.addWidget(header)
         header_layout.addStretch()
 
-        # JS宏代码浏览区标签 (只读，编辑请通过脚本列表"编辑"按钮)
+        # JSA宏代码浏览区标签 (只读，编辑请通过脚本列表"编辑"按钮)
         browser_hint = QLabel('（编辑请通过脚本列表中的"编辑"按钮）')
         browser_hint.setStyleSheet("""
             QLabel {
@@ -812,7 +812,7 @@ class JsMacroPanel(QWidget):
         self.code_editor = QPlainTextEdit()
         self.code_editor.setReadOnly(True)
         self.code_editor.setFont(QFont("Consolas", 11))
-        self.code_editor.setPlaceholderText('// 选择脚本后在此浏览JS宏代码\n// 编辑请使用脚本列表中的"编辑"按钮')
+        self.code_editor.setPlaceholderText('// 选择脚本后在此浏览JSA宏代码\n// 编辑请使用脚本列表中的"编辑"按钮')
         self.code_editor.setStyleSheet("""
             QPlainTextEdit {
                 border: 1px solid #ddd;
@@ -826,18 +826,18 @@ class JsMacroPanel(QWidget):
         layout.addWidget(self.code_editor)
 
         # 设置语法高亮器
-        self.highlighter = JsSyntaxHighlighter(self.code_editor.document())
+        self.highlighter = JsaSyntaxHighlighter(self.code_editor.document())
 
         self.setLayout(layout)
 
     def load_script(self, script):
-        """Load JS code from script data."""
+        """Load JSA code from script data."""
         self.current_script_id = script.get("id")
         js_code = script.get("js_code", "") or script.get("vba_code", "")
         self.code_editor.setPlainText(js_code)
 
     def get_code(self):
-        """Get the JS code from editor."""
+        """Get the JSA code from editor."""
         return self.code_editor.toPlainText()
 
     def clear(self):
@@ -905,8 +905,8 @@ class ScriptDialog(QDialog):
         func_layout.addWidget(self.function_input)
         layout.addLayout(func_layout)
 
-        # JS code
-        code_group = QGroupBox("JS 宏代码")
+        # JSA code
+        code_group = QGroupBox("JSA 宏代码")
         code_group.setStyleSheet("""
             QGroupBox {
                 font-weight: bold;
@@ -923,7 +923,7 @@ class ScriptDialog(QDialog):
         """)
         code_layout = QVBoxLayout()
 
-        code_tip = QLabel("提示：代码将作为 JS 函数体直接写入，支持标准 JS 语法")
+        code_tip = QLabel("提示：代码将作为 JSA 函数体直接写入，支持标准 JSA 语法")
         code_tip.setStyleSheet("""
             QLabel {
                 color: #666;
@@ -937,7 +937,7 @@ class ScriptDialog(QDialog):
         self.code_editor = QTextEdit()
         self.code_editor.setFont(QFont("Consolas", 10))
         self.code_editor.setTabStopDistance(40)  # 4 spaces worth
-        self.code_editor.setPlaceholderText("// 输入 JS 代码...\nfunction myScript() {\n    MsgBox('Hello World');\n}")
+        self.code_editor.setPlaceholderText("// 输入 JSA 代码...\nfunction myScript() {\n    MsgBox('Hello World');\n}")
         code_layout.addWidget(self.code_editor)
 
         code_group.setLayout(code_layout)
@@ -990,7 +990,7 @@ class ScriptDialog(QDialog):
 
         code = self.code_editor.toPlainText().strip()
         if not code:
-            QMessageBox.warning(self, "警告", "请输入 JS 宏代码")
+            QMessageBox.warning(self, "警告", "请输入 JSA 宏代码")
             return
 
         self.accept()
@@ -1283,10 +1283,10 @@ class WpsModule(QWidget):
         """)
         right_layout.addWidget(self.script_list, 1)
 
-        # JS Macro Editor
-        self.js_macro_panel = JsMacroPanel()
-        self.js_macro_panel.set_wps_service(self.wps_service)
-        right_layout.addWidget(self.js_macro_panel, 2)
+        # JSA Macro Editor
+        self.jsa_macro_panel = JsaMacroPanel()
+        self.jsa_macro_panel.set_wps_service(self.wps_service)
+        right_layout.addWidget(self.jsa_macro_panel, 2)
 
         right_panel.setLayout(right_layout)
 
@@ -1392,8 +1392,8 @@ class WpsModule(QWidget):
         self.refresh_preview()
 
     def load_script_in_editor(self, script):
-        """Load a script in the JS editor."""
-        self.js_macro_panel.load_script(script)
+        """Load a script in the JSA browser."""
+        self.jsa_macro_panel.load_script(script)
 
     def _on_script_selected(self):
         """Handle script selection from list."""
@@ -1404,7 +1404,7 @@ class WpsModule(QWidget):
         script_id = self.script_list.item(current_row).data(Qt.ItemDataRole.UserRole)
         script = self.wps_service.get_script(script_id)
         if script:
-            self.js_macro_panel.load_script(script)
+            self.jsa_macro_panel.load_script(script)
 
     def _on_word_clicked(self):
         """Handle Word button click."""
@@ -1488,6 +1488,6 @@ class WpsModule(QWidget):
 
         if reply == QMessageBox.StandardButton.Yes:
             self.wps_service.delete_script(script_id)
-            self.js_macro_panel.clear()
+            self.jsa_macro_panel.clear()
             self._refresh_all()
             self.script_deleted.emit()
