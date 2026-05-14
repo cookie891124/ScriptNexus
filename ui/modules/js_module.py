@@ -161,8 +161,8 @@ class JsModule(QWidget):
 
     def _setup_ui(self):
         layout = QVBoxLayout()
-        layout.setContentsMargins(10, 10, 10, 10)
-        layout.setSpacing(8)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
 
         # ---- Title (same pattern as Python module) ----
         title_layout = QHBoxLayout()
