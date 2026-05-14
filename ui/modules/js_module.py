@@ -1,4 +1,4 @@
-"""JsModule - JS script module with Chrome bookmark integration."""
+"""JsModule - Chrome JS 脚本管理模块（bookmarklet 部署）."""
 
 import os
 from PyQt6.QtWidgets import (
@@ -29,7 +29,7 @@ class ScriptDialog(QDialog):
 
     def _setup_ui(self):
         """Set up the dialog UI."""
-        self.setWindowTitle("编辑 JS 脚本" if self.is_edit_mode else "新增 JS 脚本")
+        self.setWindowTitle("编辑 Chrome JS脚本" if self.is_edit_mode else "新增 Chrome JS脚本")
         self.setMinimumSize(650, 550)
         self.setModal(True)
 
@@ -79,14 +79,10 @@ class ScriptDialog(QDialog):
         position_layout.addStretch()
         layout.addLayout(position_layout)
 
-        # Code editor (for inline JS code)
-        code_label = QLabel("JavaScript 代码 (可选):")
-        layout.addWidget(code_label)
-
-        self.code_editor = QTextEdit()
-        self.code_editor.setFont(QFont("Consolas", 10))
-        self.code_editor.setPlaceholderText("请输入 JavaScript 代码...（如果通过 URL 加载则留空）")
-        layout.addWidget(self.code_editor)
+        # URL tip
+        url_tip = QLabel("Tip: Bookmarklet 格式 javascript:(function(){...})()")
+        url_tip.setStyleSheet("QLabel { color: #888; font-size: 11px; padding: 0 5px; }")
+        layout.addWidget(url_tip)
 
         # Buttons
         button_layout = QHBoxLayout()
@@ -170,13 +166,13 @@ class ScriptDialog(QDialog):
 
 
 class JsModule(QWidget):
-    """JS script management module with Chrome bookmark integration.
+    """Chrome JS 脚本管理模块（bookmarklet 部署）。
 
     Features:
         - QListWidget for script list
-        - URL/Code editor
-        - Bookmark folder input
-        - Buttons: Add, Edit, Delete, Open in Chrome, Generate Bookmarks, Deploy
+        - Bookmarklet management (javascript: URL support)
+        - Incremental deploy to Chrome Bookmarks (preserves existing bookmarks)
+        - Buttons: Add, Edit, Delete, Open in Chrome, Deploy
     """
 
     # Signals
@@ -212,7 +208,7 @@ class JsModule(QWidget):
         title_layout.setContentsMargins(0, 0, 0, 0)
         title_layout.setSpacing(10)
 
-        title_label = QLabel("JS 脚本管理")
+        title_label = QLabel("Chrome JS 脚本管理")
         title_label.setStyleSheet("""
             QLabel {
                 font-size: 16px;
@@ -259,12 +255,6 @@ class JsModule(QWidget):
         self.open_chrome_btn.setStyleSheet(self._get_button_style("#4285F4"))
         self.open_chrome_btn.clicked.connect(self._on_open_in_chrome)
         toolbar_layout.addWidget(self.open_chrome_btn)
-
-        self.generate_bookmarks_btn = QPushButton("生成书签 JSON")
-        self.generate_bookmarks_btn.setFixedHeight(35)
-        self.generate_bookmarks_btn.setStyleSheet(self._get_button_style("#8764b8"))
-        self.generate_bookmarks_btn.clicked.connect(self._on_generate_bookmarks)
-        toolbar_layout.addWidget(self.generate_bookmarks_btn)
 
         self.deploy_bookmarks_btn = QPushButton("部署到 Chrome")
         self.deploy_bookmarks_btn.setFixedHeight(35)
@@ -471,7 +461,6 @@ class JsModule(QWidget):
             )
             self._refresh_list()
             self.script_added.emit()
-            QMessageBox.information(self, "成功", "JS 脚本已添加")
 
     def _on_edit_script(self):
         """Handle edit script button click."""
@@ -504,7 +493,6 @@ class JsModule(QWidget):
             )
             self._refresh_list()
             self.script_updated.emit()
-            QMessageBox.information(self, "成功", "脚本已更新")
 
     def _on_delete_script(self):
         """Handle delete script button click."""
@@ -533,7 +521,6 @@ class JsModule(QWidget):
                 self._refresh_list()
                 self._clear_details()
                 self.script_deleted.emit()
-                QMessageBox.information(self, "成功", "脚本已删除")
 
     def _on_open_in_chrome(self):
         """Handle open in Chrome button click."""
@@ -553,59 +540,43 @@ class JsModule(QWidget):
         if not result:
             QMessageBox.warning(self, "警告", "无法在 Chrome 中打开脚本")
 
-    def _on_generate_bookmarks(self):
-        """Handle generate bookmarks button click."""
-        import json
-        bookmarks = self.js_service.generate_bookmarks_json()
-        json_str = json.dumps(bookmarks, indent=2, ensure_ascii=False)
-        self.json_preview.setPlainText(json_str)
-        self.tab_widget.setCurrentIndex(1)  # Switch to preview tab
-
     def _on_deploy_bookmarks(self):
-        """Handle deploy bookmarks button click."""
+        """Handle deploy bookmarks button click with incremental merge."""
         if not self.js_service.chrome_path:
-            QMessageBox.warning(
-                self,
-                "警告",
-                "请先设置 Chrome 书签文件路径"
-            )
+            QMessageBox.warning(self, "警告", "请先设置 Chrome 书签文件路径")
             return
 
         result = self.js_service.deploy_bookmarks()
-        if result:
-            QMessageBox.information(
-                self,
-                "部署成功",
-                f"书签已部署到:\n{self.js_service.chrome_path}\n\n请重启 Chrome 浏览器以查看更改。"
-            )
+
+        if result["success"]:
+            # Show preview in the JSON tab
+            if "preview" in result:
+                self.json_preview.setPlainText(result["preview"])
+                self.tab_widget.setCurrentIndex(1)
+
+            QMessageBox.information(self, "部署成功", result["message"])
         else:
-            QMessageBox.warning(
-                self,
-                "部署失败",
-                "部署书签失败，请检查路径设置"
-            )
+            QMessageBox.warning(self, "部署失败", result["message"])
 
     def _on_set_chrome_path(self):
         """Handle set Chrome path button click."""
         from PyQt6.QtWidgets import QFileDialog
 
-        # Default Chrome paths for Windows
+        # Default Chrome profile paths (containing Bookmarks file)
         default_paths = [
-            os.path.expandvars(r"%LOCALAPPDATA%\Google\Chrome\User Data"),
-            os.path.expandvars(r"%APPDATA%\Google\Chrome\User Data"),
+            os.path.expandvars(r"%LOCALAPPDATA%\Google\Chrome\User Data\Default"),
+            os.path.expandvars(r"%APPDATA%\Google\Chrome\User Data\Default"),
         ]
 
-        # Try to find existing Chrome path
         initial_dir = None
         for path in default_paths:
-            if os.path.exists(path):
+            if os.path.exists(os.path.join(path, "Bookmarks")):
                 initial_dir = path
                 break
 
-        # Open folder dialog
         path = QFileDialog.getExistingDirectory(
             self,
-            "选择 Chrome User Data 目录",
+            "选择 Chrome Profile 目录（包含 Bookmarks 文件）",
             initial_dir or "",
             QFileDialog.Option.ShowDirsOnly
         )

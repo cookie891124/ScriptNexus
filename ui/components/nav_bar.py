@@ -11,7 +11,7 @@ class NavBar(QWidget):
         - 首页 (Dashboard)
         - Python 脚本 (Python Scripts)
         - WPS 脚本 (WPS Scripts)
-        - JS 脚本 (JS Scripts)
+        - Chrome JS脚本 (Chrome JS Scripts)
         - 设置 (Settings)
 
     Signals:
@@ -49,7 +49,7 @@ class NavBar(QWidget):
         self.buttons[self.DASHBOARD] = self._create_button("首页")
         self.buttons[self.PYTHON_SCRIPTS] = self._create_button("Python 脚本")
         self.buttons[self.WPS_SCRIPTS] = self._create_button("WPS 脚本")
-        self.buttons[self.JS_SCRIPTS] = self._create_button("JS 脚本")
+        self.buttons[self.JS_SCRIPTS] = self._create_button("Chrome JS脚本")
 
         # Add buttons to layout
         for btn_name, btn in self.buttons.items():
@@ -85,7 +85,7 @@ class NavBar(QWidget):
             "首页": self.DASHBOARD,
             "Python 脚本": self.PYTHON_SCRIPTS,
             "WPS 脚本": self.WPS_SCRIPTS,
-            "JS 脚本": self.JS_SCRIPTS
+            "Chrome JS脚本": self.JS_SCRIPTS
         }
         name = name_map.get(text, text)
         self.navigation_requested.emit(name)

@@ -796,14 +796,13 @@ class DeploymentService:
             result['excel'] = 'error'
 
         # Check Chrome bookmarks deployment
-        if self.js_service:
-            chrome_path = getattr(self.js_service, 'chrome_bookmarks_path', None)
-            if chrome_path and os.path.exists(chrome_path):
+        if self.js_service and self.js_service.chrome_path:
+            bookmarks_file = os.path.join(self.js_service.chrome_path, "Bookmarks")
+            if os.path.exists(bookmarks_file):
                 try:
                     import json
-                    with open(chrome_path, 'r', encoding='utf-8') as f:
+                    with open(bookmarks_file, 'r', encoding='utf-8') as f:
                         bookmarks = json.load(f)
-                        # Check if our bookmarks exist
                         if self._has_script_bookmarks(bookmarks):
                             result['chrome'] = 'ok'
                         else:
@@ -816,21 +815,17 @@ class DeploymentService:
         return result
 
     def _has_script_bookmarks(self, bookmarks_data: Dict) -> bool:
-        """Check if bookmarks contain script management entries.
+        """Check if Chrome bookmarks contain the JS Scripts folder.
 
         Args:
             bookmarks_data: Parsed Chrome bookmarks JSON
 
         Returns:
-            True if script management bookmarks exist
+            True if the managed folder exists in bookmark bar
         """
-        # Check roots
-        roots = bookmarks_data.get('roots', {})
-        for root_name in ['bookmark_bar', 'other', 'synced']:
-            root = roots.get(root_name, {})
-            children = root.get('children', [])
-            for child in children:
-                name = child.get('name', '')
-                if '脚本' in name or 'Script' in name:
-                    return True
+        bookmark_bar = bookmarks_data.get('roots', {}).get('bookmark_bar', {})
+        children = bookmark_bar.get('children', [])
+        for child in children:
+            if child.get('name') == 'JS Scripts' and child.get('type') == 'folder':
+                return True
         return False

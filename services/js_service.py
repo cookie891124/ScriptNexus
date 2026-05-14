@@ -207,113 +207,191 @@ class JsService:
             Dictionary representing the Chrome bookmarks structure.
         """
         scripts = self.get_all_scripts()
+        if not scripts:
+            return {"roots": {"bookmark_bar": {"children": [], "name": "Bookmarks bar", "type": "folder"}}, "version": 1}
 
-        # Base bookmarks structure
-        bookmarks = {
-            "roots": {
-                "bookmark_bar": {
-                    "children": [],
-                    "name": "Bookmarks bar",
-                    "type": "other"
-                },
-                "other": {
-                    "children": [],
-                    "name": "Other bookmarks",
-                    "type": "other"
-                },
-                "synced": {
-                    "children": [],
-                    "name": "Mobile bookmarks",
-                    "type": "other"
-                }
-            },
-            "version": 1
-        }
-
-        # Group scripts by parent_folder
-        folders: Dict[str, List[Dict[str, Any]]] = {}
+        now = datetime.now().isoformat()
+        items = []
         for script in scripts:
-            folder_name = script.get("parent_folder", "") or "JS Scripts"
-            if folder_name not in folders:
-                folders[folder_name] = []
-
-            folders[folder_name].append({
+            items.append({
+                "date_added": now,
                 "id": str(script["id"]),
                 "name": script["name"],
                 "type": "url",
                 "url": script["url"],
-                "position": script.get("position", 0)
             })
 
-        # Sort each folder by position
-        for folder_name in folders:
-            folders[folder_name].sort(key=lambda x: (x["position"], x["name"]))
+        # Sort by position then name
+        items.sort(key=lambda x: (
+            next((s.get("position", 0) for s in scripts if str(s["id"]) == x["id"]), 0),
+            x["name"]
+        ))
 
-        # Create folder structure in bookmark bar
-        for folder_name, items in folders.items():
-            if folder_name:
-                # Create folder
-                folder_node = {
-                    "children": [
-                        {
-                            "date_added": datetime.now().isoformat(),
-                            "id": item["id"],
-                            "name": item["name"],
-                            "type": "url",
-                            "url": item["url"]
-                        }
-                        for item in items
-                    ],
-                    "date_added": datetime.now().isoformat(),
-                    "date_modified": datetime.now().isoformat(),
-                    "guid": folder_name,
-                    "name": folder_name,
+        bookmarks = {
+            "roots": {
+                "bookmark_bar": {
+                    "children": items,
+                    "name": "Bookmarks bar",
                     "type": "folder"
                 }
-                bookmarks["roots"]["bookmark_bar"]["children"].append(folder_node)
-            else:
-                # Add directly to bookmark bar
-                for item in items:
-                    bookmarks["roots"]["bookmark_bar"]["children"].append({
-                        "date_added": datetime.now().isoformat(),
-                        "id": item["id"],
-                        "name": item["name"],
-                        "type": "url",
-                        "url": item["url"]
-                    })
-
+            },
+            "version": 1
+        }
         return bookmarks
 
-    def deploy_bookmarks(self) -> bool:
-        """Deploy bookmarks to Chrome.
-
-        Backs up existing bookmarks and writes new bookmarks.
+    def _read_existing_bookmarks(self) -> Optional[Dict[str, Any]]:
+        """Read existing Chrome Bookmarks file.
 
         Returns:
-            True if deployment was successful, False otherwise.
+            Parsed bookmarks dict, or None if file doesn't exist or is invalid.
         """
-        if not self.chrome_path:
+        bookmarks_file = os.path.join(self.chrome_path, "Bookmarks")
+        if not os.path.exists(bookmarks_file):
+            return None
+
+        try:
+            with open(bookmarks_file, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except (json.JSONDecodeError, PermissionError) as e:
+            print(f"Error reading Chrome bookmarks: {e}")
+            return None
+
+    def _is_chrome_running(self) -> bool:
+        """Check if Chrome is currently running (would lock Bookmarks file).
+
+        Returns:
+            True if Chrome process is detected.
+        """
+        try:
+            import platform
+            system = platform.system()
+            if system == 'Windows':
+                result = subprocess.run(
+                    ['tasklist', '/FI', 'IMAGENAME eq chrome.exe'],
+                    capture_output=True, text=True
+                )
+                return 'chrome.exe' in result.stdout.lower()
+            elif system == 'Linux':
+                result = subprocess.run(
+                    ['pgrep', '-f', 'chrome'],
+                    capture_output=True, text=True
+                )
+                return result.returncode == 0
+            else:
+                # macOS or unknown: skip detection
+                return False
+        except Exception:
             return False
 
-        bookmarks_file = os.path.join(self.chrome_path, "Bookmarks")
+    def deploy_bookmarks(self, target_folder: str = "JS Scripts") -> Dict[str, Any]:
+        """Deploy bookmarks to Chrome with incremental merge.
 
-        # Backup existing bookmarks if they exist
+        Reads existing Chrome Bookmarks, finds or creates target_folder
+        in the bookmark bar, replaces only that folder's children with
+        the managed bookmarks, preserves ALL other existing bookmarks.
+
+        Args:
+            target_folder: Name of the folder in Chrome bookmarks bar.
+
+        Returns:
+            Dict with 'success', 'message', and optional 'preview' keys.
+        """
+        if not self.chrome_path:
+            return {"success": False, "message": "未设置 Chrome 书签路径"}
+
+        # Check Chrome is not running (would lock file)
+        if self._is_chrome_running():
+            return {
+                "success": False,
+                "message": "请先关闭 Chrome 浏览器再部署书签\n（Chrome 运行时会锁定书签文件）"
+            }
+
+        bookmarks_file = os.path.join(self.chrome_path, "Bookmarks")
+        scripts = self.get_all_scripts()
+
+        # Read existing bookmarks or start fresh
+        existing = self._read_existing_bookmarks()
+        if existing is None:
+            existing = {
+                "roots": {
+                    "bookmark_bar": {"children": [], "name": "Bookmarks bar", "type": "folder"},
+                    "other": {"children": [], "name": "Other bookmarks", "type": "folder"},
+                    "synced": {"children": [], "name": "Mobile bookmarks", "type": "folder"},
+                },
+                "version": 1
+            }
+
+        # Ensure bookmark_bar exists
+        if "bookmark_bar" not in existing.get("roots", {}):
+            existing["roots"]["bookmark_bar"] = {
+                "children": [], "name": "Bookmarks bar", "type": "folder"
+            }
+
+        bookmark_bar = existing["roots"]["bookmark_bar"]
+        if "children" not in bookmark_bar:
+            bookmark_bar["children"] = []
+
+        # Build managed bookmarks for the target folder
+        now = datetime.now().isoformat()
+        managed_items = []
+        for script in scripts:
+            managed_items.append({
+                "date_added": now,
+                "id": str(script["id"]),
+                "name": script["name"],
+                "type": "url",
+                "url": script["url"],
+            })
+
+        # Find existing target folder or create one
+        target_node = None
+        for child in bookmark_bar["children"]:
+            if child.get("name") == target_folder and child.get("type") == "folder":
+                target_node = child
+                break
+
+        if target_node is None:
+            # Create new folder node at the TOP of bookmark bar
+            target_node = {
+                "children": [],
+                "date_added": now,
+                "date_modified": now,
+                "guid": target_folder,
+                "name": target_folder,
+                "type": "folder",
+            }
+            bookmark_bar["children"].insert(0, target_node)
+
+        # Replace the folder's children with managed bookmarks
+        target_node["children"] = managed_items
+        target_node["date_modified"] = now
+
+        # Backup existing before writing
         if os.path.exists(bookmarks_file):
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             backup_file = os.path.join(self.chrome_path, f"Bookmarks.bak.{timestamp}")
-            shutil.copy2(bookmarks_file, backup_file)
+            try:
+                shutil.copy2(bookmarks_file, backup_file)
+            except Exception:
+                pass
 
-        # Generate new bookmarks
-        bookmarks = self.generate_bookmarks_json()
-
-        # Write bookmarks file
+        # Write merged bookmarks
         try:
             with open(bookmarks_file, 'w', encoding='utf-8') as f:
-                json.dump(bookmarks, f, indent=2, ensure_ascii=False)
-            return True
+                json.dump(existing, f, indent=2, ensure_ascii=False)
+
+            # Build preview for UI display
+            preview = json.dumps(existing, indent=2, ensure_ascii=False)
+
+            return {
+                "success": True,
+                "message": f"已部署 {len(managed_items)} 个书签到文件夹「{target_folder}」\n\n请重启 Chrome 浏览器查看。",
+                "preview": preview,
+            }
+        except PermissionError:
+            return {"success": False, "message": "无法写入书签文件 — 请确认 Chrome 已关闭"}
         except Exception as e:
-            print(f"Error deploying bookmarks: {e}")
-            return False
+            return {"success": False, "message": f"部署失败: {e}"}
 
     def open_in_chrome(self, script_id: int) -> bool:
         """Open a script URL in Chrome.

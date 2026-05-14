@@ -9,7 +9,7 @@ class Dashboard(QWidget):
 
     Features:
         - Welcome title
-        - Three statistics cards: Python Scripts, WPS Scripts, JS Scripts
+        - Three statistics cards: Python Scripts, WPS Scripts, Chrome JS Scripts
     """
 
     def __init__(self, parent=None):
@@ -53,8 +53,8 @@ class Dashboard(QWidget):
         self.wps_card = self._create_stat_card("WPS 脚本", "wps_count", 0)
         cards_layout.addWidget(self.wps_card)
 
-        # JS Scripts card
-        self.js_card = self._create_stat_card("JS 脚本", "js_count", 0)
+        # Chrome JS Scripts card
+        self.js_card = self._create_stat_card("Chrome JS脚本", "js_count", 0)
         cards_layout.addWidget(self.js_card)
 
         layout.addLayout(cards_layout)
