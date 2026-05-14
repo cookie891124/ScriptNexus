@@ -79,7 +79,7 @@ def get_config_path():
     Returns:
         Path to config.json
     """
-    return os.path.join(get_app_data_dir(), 'data', 'config.json')
+    return os.path.join(get_app_data_dir(), 'config.json')
 
 
 def get_db_path():
