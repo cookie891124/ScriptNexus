@@ -26,7 +26,6 @@ from services.js_service import JsService
 from services.dependency_service import DependencyService
 from ui.main_window import MainWindow
 from ui.system_tray import SystemTray
-from ui.debug_overlay import install_debug_overlay
 
 
 def main():
@@ -134,9 +133,6 @@ def main():
 
     # Keep reference to prevent garbage collection
     app.main_window = main_window
-
-    # Install debug overlay (hold Shift + hover = widget diagnostic)
-    install_debug_overlay(app)
 
     # Run the application main loop
     sys.exit(app.exec())

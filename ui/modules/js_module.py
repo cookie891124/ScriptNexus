@@ -223,13 +223,17 @@ class JsModule(QWidget):
         self.deploy_btn.clicked.connect(self._on_deploy_bookmarks)
         toolbar_layout.addWidget(self.deploy_btn)
 
-        # Path label
         toolbar_layout.addStretch()
-        self.path_label = QLabel("书签路径：未设置")
-        self.path_label.setStyleSheet("color: #999; font-size: 11px;")
-        toolbar_layout.addWidget(self.path_label)
-
         layout.addLayout(toolbar_layout, 0)  # stretch=0: don't expand
+
+        # ---- Path row ----
+        path_layout = QHBoxLayout()
+        path_layout.setContentsMargins(0, 0, 0, 2)
+        self.path_label = QLabel("书签路径：未设置")
+        self.path_label.setStyleSheet("color: #aaa; font-size: 11px;")
+        path_layout.addWidget(self.path_label)
+        path_layout.addStretch()
+        layout.addLayout(path_layout, 0)  # stretch=0: don't expand
 
         # ---- Main content: splitter ----
         splitter = QSplitter(Qt.Orientation.Horizontal)
