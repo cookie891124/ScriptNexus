@@ -206,21 +206,16 @@ class JsModule(QWidget):
         self.deploy_btn.clicked.connect(self._on_deploy_bookmarks)
         tb.addWidget(self.deploy_btn)
 
-        tb.addStretch()
-        layout.addLayout(tb)
-
-        # ---- Path status ----
-        path_row = QHBoxLayout()
-        path_row.setContentsMargins(0, 0, 0, 0)
-        path_row.setSpacing(4)
-        pl = QLabel("书签路径：")
-        pl.setStyleSheet("color: #666; font-size: 11px;")
-        path_row.addWidget(pl)
+        # Path info inline (compact)
+        pl = QLabel("  书签路径：")
+        pl.setStyleSheet("color: #999; font-size: 11px;")
+        tb.addWidget(pl)
         self.path_label = QLabel("未设置")
         self.path_label.setStyleSheet("color: #888; font-size: 11px;")
-        path_row.addWidget(self.path_label)
-        path_row.addStretch()
-        layout.addLayout(path_row)
+        tb.addWidget(self.path_label)
+
+        tb.addStretch()
+        layout.addLayout(tb)
 
         # ---- Main content: splitter ----
         splitter = QSplitter(Qt.Orientation.Horizontal)
