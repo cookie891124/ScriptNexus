@@ -161,73 +161,88 @@ class JsModule(QWidget):
 
     def _setup_ui(self):
         layout = QVBoxLayout()
-        layout.setContentsMargins(4, 2, 4, 2)
-        layout.setSpacing(2)
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setSpacing(8)
 
-        # ---- Title ----
-        title = QLabel("Chrome JS 脚本管理")
-        title.setStyleSheet("font-size: 14px; font-weight: bold; color: #333; background: #f0f0f0; padding: 3px 8px; border-radius: 3px;")
-        title.setFixedHeight(28)
-        layout.addWidget(title)
+        # ---- Title (same pattern as Python module) ----
+        title_layout = QHBoxLayout()
+        title_layout.setContentsMargins(0, 0, 0, 0)
+        title_layout.setSpacing(10)
 
-        # ---- Toolbar ----
-        tb = QHBoxLayout()
-        tb.setContentsMargins(0, 0, 0, 0)
-        tb.setSpacing(6)
+        title_label = QLabel("Chrome JS 脚本管理")
+        title_label.setStyleSheet("""
+            QLabel {
+                font-size: 16px;
+                font-weight: bold;
+                color: #333;
+                padding: 5px 10px;
+                background-color: #f0f0f0;
+                border-radius: 4px;
+            }
+        """)
+        title_label.setFixedHeight(35)
+        title_layout.addWidget(title_label)
+        title_layout.addStretch()
+
+        layout.addLayout(title_layout)
+
+        # ---- Toolbar (same pattern as Python module) ----
+        toolbar_layout = QHBoxLayout()
+        toolbar_layout.setSpacing(8)
+        toolbar_layout.setContentsMargins(0, 0, 0, 5)
 
         self.add_btn = QPushButton("+ 新增")
-        self.add_btn.setFixedHeight(30)
+        self.add_btn.setFixedHeight(35)
         self.add_btn.setStyleSheet(self._btn_style("#107c10"))
         self.add_btn.clicked.connect(self._on_add_script)
-        tb.addWidget(self.add_btn)
+        toolbar_layout.addWidget(self.add_btn)
 
         self.edit_btn = QPushButton("修改")
-        self.edit_btn.setFixedHeight(30)
+        self.edit_btn.setFixedHeight(35)
         self.edit_btn.setStyleSheet(self._btn_style("#0078D4"))
         self.edit_btn.clicked.connect(self._on_edit_script)
-        tb.addWidget(self.edit_btn)
+        toolbar_layout.addWidget(self.edit_btn)
 
         self.delete_btn = QPushButton("删除")
-        self.delete_btn.setFixedHeight(30)
+        self.delete_btn.setFixedHeight(35)
         self.delete_btn.setStyleSheet(self._btn_style("#d83b01"))
         self.delete_btn.clicked.connect(self._on_delete_script)
-        tb.addWidget(self.delete_btn)
+        toolbar_layout.addWidget(self.delete_btn)
 
-        tb.addSpacing(16)
+        toolbar_layout.addSpacing(20)
 
         self.open_btn = QPushButton("在 Chrome 中打开")
-        self.open_btn.setFixedHeight(30)
+        self.open_btn.setFixedHeight(35)
         self.open_btn.setStyleSheet(self._btn_style("#4285F4"))
         self.open_btn.clicked.connect(self._on_open_in_chrome)
-        tb.addWidget(self.open_btn)
+        toolbar_layout.addWidget(self.open_btn)
 
         self.deploy_btn = QPushButton("部署到 Chrome")
-        self.deploy_btn.setFixedHeight(30)
+        self.deploy_btn.setFixedHeight(35)
         self.deploy_btn.setStyleSheet(self._btn_style("#009900"))
         self.deploy_btn.clicked.connect(self._on_deploy_bookmarks)
-        tb.addWidget(self.deploy_btn)
+        toolbar_layout.addWidget(self.deploy_btn)
 
-        # Path info inline
-        tb.addStretch()
+        # Path label
+        toolbar_layout.addStretch()
         self.path_label = QLabel("书签路径：未设置")
         self.path_label.setStyleSheet("color: #999; font-size: 11px;")
-        tb.addWidget(self.path_label)
+        toolbar_layout.addWidget(self.path_label)
 
-        layout.addLayout(tb)
+        layout.addLayout(toolbar_layout)
 
         # ---- Main content: splitter ----
         splitter = QSplitter(Qt.Orientation.Horizontal)
 
         # === Left: script list ===
-        left = QFrame()
-        left.setFrameShape(QFrame.Shape.NoFrame)
+        list_panel = QWidget()
         ll = QVBoxLayout()
         ll.setContentsMargins(0, 0, 0, 0)
         ll.setSpacing(0)
 
         list_hdr = QLabel("脚本列表")
-        list_hdr.setStyleSheet("font-weight: bold; padding: 2px 6px; background: #e8e8e8;")
-        list_hdr.setFixedHeight(22)
+        list_hdr.setStyleSheet("font-weight: bold; padding: 3px; background: #e8e8e8;")
+        list_hdr.setFixedHeight(24)
         ll.addWidget(list_hdr)
 
         self.script_list = QListWidget()
@@ -235,25 +250,24 @@ class JsModule(QWidget):
         self.script_list.itemSelectionChanged.connect(self._on_selection_changed)
         ll.addWidget(self.script_list)
 
-        left.setLayout(ll)
+        list_panel.setLayout(ll)
 
         # === Right: vertical split (details top / preview bottom) ===
         vsplit = QSplitter(Qt.Orientation.Vertical)
 
         # -- Details panel --
-        detail_frame = QFrame()
-        detail_frame.setFrameShape(QFrame.Shape.NoFrame)
+        detail_panel = QWidget()
         dl = QVBoxLayout()
-        dl.setContentsMargins(4, 0, 4, 0)
-        dl.setSpacing(1)
+        dl.setContentsMargins(6, 4, 6, 4)
+        dl.setSpacing(3)
 
         dl_hdr = QLabel("脚本信息")
-        dl_hdr.setStyleSheet("font-weight: bold; padding: 2px 6px; background: #e8e8e8;")
-        dl_hdr.setFixedHeight(22)
+        dl_hdr.setStyleSheet("font-weight: bold; padding: 3px; background: #e8e8e8;")
+        dl_hdr.setFixedHeight(24)
         dl.addWidget(dl_hdr)
 
         self.detail_form = QFormLayout()
-        self.detail_form.setSpacing(3)
+        self.detail_form.setSpacing(10)
 
         self.detail_name = QLabel("-")
         self.detail_url = QLabel("-")
@@ -262,44 +276,43 @@ class JsModule(QWidget):
         self.detail_folder = QLabel("-")
         self.detail_pos = QLabel("-")
 
-        self.detail_form.addRow("名称:", self.detail_name)
+        self.detail_form.addRow("脚本名称:", self.detail_name)
         self.detail_form.addRow("URL:", self.detail_url)
-        self.detail_form.addRow("子文件夹:", self.detail_folder)
-        self.detail_form.addRow("排序:", self.detail_pos)
+        self.detail_form.addRow("书签文件夹:", self.detail_folder)
+        self.detail_form.addRow("排序位置:", self.detail_pos)
 
         dl.addLayout(self.detail_form)
         dl.addStretch()
-        detail_frame.setLayout(dl)
+        detail_panel.setLayout(dl)
 
         # -- Preview panel --
-        preview_frame = QFrame()
-        preview_frame.setFrameShape(QFrame.Shape.NoFrame)
+        preview_panel = QWidget()
         pl = QVBoxLayout()
-        pl.setContentsMargins(4, 0, 4, 0)
-        pl.setSpacing(1)
+        pl.setContentsMargins(6, 4, 6, 4)
+        pl.setSpacing(3)
 
-        pl_hdr = QLabel("书签预览")
-        pl_hdr.setStyleSheet("font-weight: bold; padding: 2px 6px; background: #e8e8e8;")
-        pl_hdr.setFixedHeight(22)
+        pl_hdr = QLabel("书签 JSON 预览")
+        pl_hdr.setStyleSheet("font-weight: bold; padding: 3px; background: #e8e8e8;")
+        pl_hdr.setFixedHeight(24)
         pl.addWidget(pl_hdr)
 
         self.json_preview = QTextEdit()
         self.json_preview.setFont(QFont("Consolas", 9))
         self.json_preview.setReadOnly(True)
-        self.json_preview.setPlaceholderText("点击「部署到 Chrome」后此处显示合并后的书签结构…")
+        self.json_preview.setPlaceholderText('点击"部署到 Chrome"按钮查看生成的书签结构...')
         pl.addWidget(self.json_preview)
 
-        preview_frame.setLayout(pl)
+        preview_panel.setLayout(pl)
 
-        vsplit.addWidget(detail_frame)
-        vsplit.addWidget(preview_frame)
+        vsplit.addWidget(detail_panel)
+        vsplit.addWidget(preview_panel)
         vsplit.setStretchFactor(0, 2)
         vsplit.setStretchFactor(1, 3)
 
-        splitter.addWidget(left)
+        splitter.addWidget(list_panel)
         splitter.addWidget(vsplit)
         splitter.setStretchFactor(0, 1)
-        splitter.setStretchFactor(1, 3)
+        splitter.setStretchFactor(1, 2)
 
         layout.addWidget(splitter)
         self.setLayout(layout)
