@@ -1,0 +1,11 @@
+<mso:customUI xmlns:mso="http://schemas.microsoft.com/office/2009/07/customui">
+  <mso:ribbon>
+    <mso:tabs>
+      <mso:tab id="1776225439_0" insertBeforeQ="mso:CT_Insert" label="测试专用">
+        <mso:group id="1776225439_1" label="测试123">
+          <mso:control idQ="mso:NewBlankFile"/>
+        </mso:group>
+      </mso:tab>
+    </mso:tabs>
+  </mso:ribbon>
+</mso:customUI>

@@ -1,0 +1,14 @@
+{
+  "paths": {
+    "chrome_bookmarks": "C:\\Users\\L\\AppData\\Local\\Google\\Chrome\\User Data\\Default\\Bookmarks",
+    "wps_word_startup": "D:/用户/桌面",
+    "wps_excel_startup": "D:/用户/桌面",
+    "scripts_dir": "D:/用户/桌面",
+    "whl_pool_dir": "",
+    "templates_dir": "",
+    "last_whl_download_path": "D:/用户/桌面"
+  },
+  "app": {
+    "initialized": "true"
+  }
+}
