@@ -164,47 +164,37 @@ class JsModule(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
-        # ---- Title (same pattern as Python module) ----
+        # ---- Title ----
         title_layout = QHBoxLayout()
-        title_layout.setContentsMargins(0, 0, 0, 0)
+        title_layout.setContentsMargins(2, 2, 2, 2)
         title_layout.setSpacing(10)
 
         title_label = QLabel("Chrome JS 脚本管理")
-        title_label.setStyleSheet("""
-            QLabel {
-                font-size: 16px;
-                font-weight: bold;
-                color: #333;
-                padding: 5px 10px;
-                background-color: #f0f0f0;
-                border-radius: 4px;
-            }
-        """)
-        title_label.setFixedHeight(35)
+        title_label.setStyleSheet("font-size: 13px; font-weight: bold; color: #333;")
         title_layout.addWidget(title_label)
         title_layout.addStretch()
 
         layout.addLayout(title_layout)
 
-        # ---- Toolbar (same pattern as Python module) ----
+        # ---- Toolbar ----
         toolbar_layout = QHBoxLayout()
-        toolbar_layout.setSpacing(8)
-        toolbar_layout.setContentsMargins(0, 0, 0, 5)
+        toolbar_layout.setSpacing(4)
+        toolbar_layout.setContentsMargins(2, 0, 2, 2)
 
         self.add_btn = QPushButton("+ 新增")
-        self.add_btn.setFixedHeight(35)
+        self.add_btn.setFixedHeight(28)
         self.add_btn.setStyleSheet(self._btn_style("#107c10"))
         self.add_btn.clicked.connect(self._on_add_script)
         toolbar_layout.addWidget(self.add_btn)
 
         self.edit_btn = QPushButton("修改")
-        self.edit_btn.setFixedHeight(35)
+        self.edit_btn.setFixedHeight(28)
         self.edit_btn.setStyleSheet(self._btn_style("#0078D4"))
         self.edit_btn.clicked.connect(self._on_edit_script)
         toolbar_layout.addWidget(self.edit_btn)
 
         self.delete_btn = QPushButton("删除")
-        self.delete_btn.setFixedHeight(35)
+        self.delete_btn.setFixedHeight(28)
         self.delete_btn.setStyleSheet(self._btn_style("#d83b01"))
         self.delete_btn.clicked.connect(self._on_delete_script)
         toolbar_layout.addWidget(self.delete_btn)
@@ -212,13 +202,13 @@ class JsModule(QWidget):
         toolbar_layout.addSpacing(20)
 
         self.open_btn = QPushButton("在 Chrome 中打开")
-        self.open_btn.setFixedHeight(35)
+        self.open_btn.setFixedHeight(28)
         self.open_btn.setStyleSheet(self._btn_style("#4285F4"))
         self.open_btn.clicked.connect(self._on_open_in_chrome)
         toolbar_layout.addWidget(self.open_btn)
 
         self.deploy_btn = QPushButton("部署到 Chrome")
-        self.deploy_btn.setFixedHeight(35)
+        self.deploy_btn.setFixedHeight(28)
         self.deploy_btn.setStyleSheet(self._btn_style("#009900"))
         self.deploy_btn.clicked.connect(self._on_deploy_bookmarks)
         toolbar_layout.addWidget(self.deploy_btn)
