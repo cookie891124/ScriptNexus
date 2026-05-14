@@ -43,15 +43,13 @@ class JsService:
         conn.close()
 
     def set_chrome_path(self, path: str) -> None:
-        """Set the Chrome bookmarks file path.
+        """Set the Chrome profile directory path.
 
         Args:
-            path: Path to the Chrome user data directory containing the Bookmarks file.
+            path: Path to the Chrome profile directory (containing Bookmarks file).
         """
-        if path and path.strip() and not os.path.exists(path):
-            os.makedirs(path)
         if path and path.strip():
-            self.chrome_path = path
+            self.chrome_path = path.strip()
 
     def add_script(self, name: str, url: str, parent_folder: str = "",
                    position: int = 0) -> int:
