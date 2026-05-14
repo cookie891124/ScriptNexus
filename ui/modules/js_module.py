@@ -163,18 +163,17 @@ class JsModule(QWidget):
         layout = QVBoxLayout()
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
-
         # ---- Title ----
         title_layout = QHBoxLayout()
         title_layout.setContentsMargins(2, 2, 2, 2)
         title_layout.setSpacing(10)
 
-        title_label = QLabel("Chrome JS 脚本管理")
+        title_label = QLabel("Chrome JS 脚本管理 [v0520]")
         title_label.setStyleSheet("font-size: 13px; font-weight: bold; color: #333;")
         title_layout.addWidget(title_label)
         title_layout.addStretch()
 
-        layout.addLayout(title_layout)
+        layout.addLayout(title_layout, 0)  # stretch=0: don't expand
 
         # ---- Toolbar ----
         toolbar_layout = QHBoxLayout()
@@ -219,7 +218,7 @@ class JsModule(QWidget):
         self.path_label.setStyleSheet("color: #999; font-size: 11px;")
         toolbar_layout.addWidget(self.path_label)
 
-        layout.addLayout(toolbar_layout)
+        layout.addLayout(toolbar_layout, 0)  # stretch=0: don't expand
 
         # ---- Main content: splitter ----
         splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -306,7 +305,7 @@ class JsModule(QWidget):
         splitter.setStretchFactor(0, 1)
         splitter.setStretchFactor(1, 2)
 
-        layout.addWidget(splitter)
+        layout.addWidget(splitter, 1)  # stretch=1: take remaining space
         self.setLayout(layout)
 
     def _btn_style(self, color):
