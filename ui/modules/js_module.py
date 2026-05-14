@@ -161,62 +161,63 @@ class JsModule(QWidget):
 
     def _setup_ui(self):
         layout = QVBoxLayout()
-        layout.setContentsMargins(4, 4, 4, 4)
-        layout.setSpacing(2)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
 
-        # ---- Title ----
+        # ---- Header bar (title + toolbar in one row) ----
+        header = QHBoxLayout()
+        header.setContentsMargins(4, 2, 4, 2)
+        header.setSpacing(8)
+
         title = QLabel("Chrome JS 脚本管理")
-        title.setStyleSheet("font-size: 14px; font-weight: bold; color: #333; padding: 2px 8px; background: #f0f0f0; border-radius: 3px;")
-        title.setFixedHeight(28)
-        layout.addWidget(title)
+        title.setStyleSheet("font-size: 13px; font-weight: bold; color: #333;")
+        header.addWidget(title)
 
-        # ---- Toolbar ----
-        tb = QHBoxLayout()
-        tb.setContentsMargins(0, 0, 0, 0)
-        tb.setSpacing(4)
+        header.addSpacing(8)
 
         self.add_btn = QPushButton("+ 新增")
-        self.add_btn.setFixedHeight(32)
+        self.add_btn.setFixedHeight(28)
         self.add_btn.setStyleSheet(self._btn_style("#107c10"))
         self.add_btn.clicked.connect(self._on_add_script)
-        tb.addWidget(self.add_btn)
+        header.addWidget(self.add_btn)
 
         self.edit_btn = QPushButton("修改")
-        self.edit_btn.setFixedHeight(32)
+        self.edit_btn.setFixedHeight(28)
         self.edit_btn.setStyleSheet(self._btn_style("#0078D4"))
         self.edit_btn.clicked.connect(self._on_edit_script)
-        tb.addWidget(self.edit_btn)
+        header.addWidget(self.edit_btn)
 
         self.delete_btn = QPushButton("删除")
-        self.delete_btn.setFixedHeight(32)
+        self.delete_btn.setFixedHeight(28)
         self.delete_btn.setStyleSheet(self._btn_style("#d83b01"))
         self.delete_btn.clicked.connect(self._on_delete_script)
-        tb.addWidget(self.delete_btn)
+        header.addWidget(self.delete_btn)
 
-        tb.addSpacing(16)
+        header.addSpacing(12)
 
         self.open_btn = QPushButton("在 Chrome 中打开")
-        self.open_btn.setFixedHeight(32)
+        self.open_btn.setFixedHeight(28)
         self.open_btn.setStyleSheet(self._btn_style("#4285F4"))
         self.open_btn.clicked.connect(self._on_open_in_chrome)
-        tb.addWidget(self.open_btn)
+        header.addWidget(self.open_btn)
 
         self.deploy_btn = QPushButton("部署到 Chrome")
-        self.deploy_btn.setFixedHeight(32)
+        self.deploy_btn.setFixedHeight(28)
         self.deploy_btn.setStyleSheet(self._btn_style("#009900"))
         self.deploy_btn.clicked.connect(self._on_deploy_bookmarks)
-        tb.addWidget(self.deploy_btn)
+        header.addWidget(self.deploy_btn)
 
-        # Path info inline (compact)
-        pl = QLabel("  书签路径：")
-        pl.setStyleSheet("color: #999; font-size: 11px;")
-        tb.addWidget(pl)
+        header.addStretch()
+
+        # Path label (compact, same row)
+        pl = QLabel("书签路径：")
+        pl.setStyleSheet("color: #aaa; font-size: 10px;")
+        header.addWidget(pl)
         self.path_label = QLabel("未设置")
-        self.path_label.setStyleSheet("color: #888; font-size: 11px;")
-        tb.addWidget(self.path_label)
+        self.path_label.setStyleSheet("color: #aaa; font-size: 10px;")
+        header.addWidget(self.path_label)
 
-        tb.addStretch()
-        layout.addLayout(tb)
+        layout.addLayout(header)
 
         # ---- Main content: splitter ----
         splitter = QSplitter(Qt.Orientation.Horizontal)
