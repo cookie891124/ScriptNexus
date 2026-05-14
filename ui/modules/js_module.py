@@ -161,18 +161,19 @@ class JsModule(QWidget):
 
     def _setup_ui(self):
         layout = QVBoxLayout()
-        layout.setContentsMargins(10, 10, 10, 10)
-        layout.setSpacing(6)
+        layout.setContentsMargins(4, 4, 4, 4)
+        layout.setSpacing(2)
 
         # ---- Title ----
         title = QLabel("Chrome JS 脚本管理")
-        title.setStyleSheet("font-size: 15px; font-weight: bold; color: #333; padding: 4px 8px; background: #f0f0f0; border-radius: 4px;")
-        title.setFixedHeight(32)
+        title.setStyleSheet("font-size: 14px; font-weight: bold; color: #333; padding: 2px 8px; background: #f0f0f0; border-radius: 3px;")
+        title.setFixedHeight(28)
         layout.addWidget(title)
 
         # ---- Toolbar ----
         tb = QHBoxLayout()
-        tb.setSpacing(6)
+        tb.setContentsMargins(0, 0, 0, 0)
+        tb.setSpacing(4)
 
         self.add_btn = QPushButton("+ 新增")
         self.add_btn.setFixedHeight(32)
@@ -222,14 +223,14 @@ class JsModule(QWidget):
 
         # === Left: script list ===
         left = QFrame()
-        left.setFrameShape(QFrame.Shape.StyledPanel)
+        left.setFrameShape(QFrame.Shape.NoFrame)
         ll = QVBoxLayout()
         ll.setContentsMargins(0, 0, 0, 0)
-        ll.setSpacing(2)
+        ll.setSpacing(0)
 
-        list_hdr = QLabel(" 脚本列表")
-        list_hdr.setStyleSheet("font-weight: bold; padding: 4px; background: #e8e8e8;")
-        list_hdr.setFixedHeight(24)
+        list_hdr = QLabel("脚本列表")
+        list_hdr.setStyleSheet("font-weight: bold; padding: 2px 6px; background: #e8e8e8;")
+        list_hdr.setFixedHeight(22)
         ll.addWidget(list_hdr)
 
         self.script_list = QListWidget()
@@ -244,18 +245,18 @@ class JsModule(QWidget):
 
         # -- Details panel --
         detail_frame = QFrame()
-        detail_frame.setFrameShape(QFrame.Shape.StyledPanel)
+        detail_frame.setFrameShape(QFrame.Shape.NoFrame)
         dl = QVBoxLayout()
-        dl.setContentsMargins(6, 4, 6, 4)
-        dl.setSpacing(4)
+        dl.setContentsMargins(4, 0, 4, 0)
+        dl.setSpacing(1)
 
-        dl_hdr = QLabel(" 脚本信息")
-        dl_hdr.setStyleSheet("font-weight: bold; padding: 4px; background: #e8e8e8;")
-        dl_hdr.setFixedHeight(24)
+        dl_hdr = QLabel("脚本信息")
+        dl_hdr.setStyleSheet("font-weight: bold; padding: 2px 6px; background: #e8e8e8;")
+        dl_hdr.setFixedHeight(22)
         dl.addWidget(dl_hdr)
 
         self.detail_form = QFormLayout()
-        self.detail_form.setSpacing(6)
+        self.detail_form.setSpacing(3)
 
         self.detail_name = QLabel("-")
         self.detail_url = QLabel("-")
@@ -275,14 +276,14 @@ class JsModule(QWidget):
 
         # -- Preview panel --
         preview_frame = QFrame()
-        preview_frame.setFrameShape(QFrame.Shape.StyledPanel)
+        preview_frame.setFrameShape(QFrame.Shape.NoFrame)
         pl = QVBoxLayout()
-        pl.setContentsMargins(6, 4, 6, 4)
-        pl.setSpacing(4)
+        pl.setContentsMargins(4, 0, 4, 0)
+        pl.setSpacing(1)
 
-        pl_hdr = QLabel(" 书签预览 (部署后自动刷新)")
-        pl_hdr.setStyleSheet("font-weight: bold; padding: 4px; background: #e8e8e8;")
-        pl_hdr.setFixedHeight(24)
+        pl_hdr = QLabel("书签预览")
+        pl_hdr.setStyleSheet("font-weight: bold; padding: 2px 6px; background: #e8e8e8;")
+        pl_hdr.setFixedHeight(22)
         pl.addWidget(pl_hdr)
 
         self.json_preview = QTextEdit()
