@@ -1,129 +1,79 @@
-"""Shift+悬停调试工具 — 按住 Shift 显示鼠标下方控件的类型/尺寸/父级链."""
+"""Shift+悬停调试 — 按住 Shift 在鼠标旁显示控件诊断信息."""
 
-from PyQt6.QtWidgets import QLabel, QApplication
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtWidgets import QApplication, QToolTip, QWidget
+from PyQt6.QtCore import Qt, QEvent, QObject
 from PyQt6.QtGui import QCursor
 
 
-class DebugOverlay:
-    """Shift+hover widget diagnostic overlay.
+def _build_info(widget: QWidget) -> str:
+    """Build diagnostic text for a widget."""
+    lines = []
+    cls = type(widget).__name__
+    oname = widget.objectName() or "(无)"
+    lines.append(f"<b>{cls}</b> [{oname}]")
+    geo = widget.geometry()
+    lines.append(f"x={geo.x()} y={geo.y()} w={geo.width()} h={geo.height()}")
 
-    Holds Shift → every 300ms reads cursor position, finds widget under
-    cursor, shows a green floating tooltip with widget class/geometry/
-    margins/layout/parent chain. Release Shift → hide.
-    """
+    lay = widget.layout()
+    if lay:
+        m = lay.contentsMargins()
+        lines.append(f"LM L{m.left()} T{m.top()} R{m.right()} B{m.bottom()} spacing={lay.spacing()} children={lay.count()}")
 
-    def __init__(self, app: QApplication):
-        self._app = app
-        self._label = QLabel()
-        self._label.setWindowFlags(
-            Qt.WindowType.ToolTip |
-            Qt.WindowType.FramelessWindowHint |
-            Qt.WindowType.WindowStaysOnTopHint
-        )
-        self._label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
-        self._label.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
-        self._label.setStyleSheet("""
-            QLabel {
-                background-color: rgba(0, 0, 0, 220);
-                color: #00ff00;
-                font-family: Consolas, monospace;
-                font-size: 10px;
-                padding: 6px 8px;
-                border: 1px solid #00ff00;
-                border-radius: 3px;
-            }
-        """)
-        self._label.hide()
+    mnh = widget.minimumHeight()
+    mxh = widget.maximumHeight()
+    lines.append(f"minH={mnh} maxH={mxh}")
+    if mnh == mxh and mnh < 16777215:
+        lines.append(f"<span style='color:#ff0'>>>> FIXED h={mnh}</span>")
 
-        self._timer = QTimer()
-        self._timer.setInterval(300)
-        self._timer.timeout.connect(self._tick)
-        self._timer.start()
+    sp = widget.sizePolicy()
+    sn = {0: "Fixed", 1: "Minimum", 3: "MinExp", 4: "Pref", 5: "Exp", 7: "Ignore"}
+    lines.append(f"SP H={sn.get(sp.horizontalPolicy(),'?')} V={sn.get(sp.verticalPolicy(),'?')}")
 
-    def _tick(self):
-        # Check Shift state each tick (no event filter needed)
-        modifiers = QApplication.queryKeyboardModifiers()
-        if not (modifiers & Qt.KeyboardModifier.ShiftModifier):
-            if self._label.isVisible():
-                self._label.hide()
-            return
+    ss = widget.styleSheet()
+    if ss:
+        lines.append(f"QSS: {ss[:120].replace(chr(10),' ')}")
 
-        pos = QCursor.pos()  # global screen coords
+    lines.append("<b>父级:</b>")
+    p = widget.parentWidget()
+    d = 0
+    while p and d < 4:
+        pc = type(p).__name__
+        pn = p.objectName() or ""
+        pg = p.geometry()
+        pl = p.layout()
+        pm = f" LM({pl.contentsMargins().left()},{pl.contentsMargins().top()},{pl.contentsMargins().right()},{pl.contentsMargins().bottom()})" if pl else ""
+        lines.append(f"  {'  '*d}{pc}[{pn}] xy({pg.x()},{pg.y()}) {pg.width()}x{pg.height()}{pm}")
+        p = p.parentWidget()
+        d += 1
+
+    return "<br>".join(lines)
+
+
+class _DebugFilter(QObject):
+    """Global event filter: on Shift+MouseMove, show widget diagnostics."""
+
+    def eventFilter(self, obj, event):
+        if event.type() != QEvent.Type.MouseMove:
+            return False
+
+        mods = QApplication.queryKeyboardModifiers()
+        if not (mods & Qt.KeyboardModifier.ShiftModifier):
+            QToolTip.hideText()
+            return False
+
+        # Use widgetAt with the global cursor position
+        pos = QCursor.pos()
         widget = QApplication.widgetAt(pos)
         if widget is None:
-            self._label.hide()
-            return
+            return False
 
-        # Build info lines
-        lines = []
-        w = widget
-        cls = type(w).__name__
-        oname = w.objectName() or "(无)"
-        lines.append(f"{cls}  [{oname}]")
-        geo = w.geometry()
-        lines.append(f"  x={geo.x()} y={geo.y()} w={geo.width()} h={geo.height()}")
-
-        layout = w.layout()
-        if layout:
-            m = layout.contentsMargins()
-            lines.append(f"  layoutMargins: L{m.left()} T{m.top()} R{m.right()} B{m.bottom()}")
-            lines.append(f"  layoutSpacing: {layout.spacing()}")
-            cnt = layout.count()
-            lines.append(f"  layoutChildren: {cnt}")
-
-        # Size constraints
-        mnh = w.minimumHeight()
-        mxh = w.maximumHeight()
-        if mnh > 0:
-            lines.append(f"  minHeight={mnh}")
-        if mxh < 16777215:
-            lines.append(f"  maxHeight={mxh}")
-        if mnh == mxh and mnh < 16777215:
-            lines.append(f"  >>> FIXED height={mnh} <<<")
-
-        # sizePolicy
-        sp = w.sizePolicy()
-        sp_names = {0: "Fixed", 1: "Minimum", 3: "MinExpanding", 4: "Preferred", 5: "Expanding", 7: "Ignored"}
-        lines.append(f"  sizePolicy: H={sp_names.get(sp.horizontalPolicy(), '?')} V={sp_names.get(sp.verticalPolicy(), '?')}")
-
-        # StyleSheet snippet
-        ss = w.styleSheet()
-        if ss:
-            short = ss[:100].replace('\n', ' ').replace('\t', ' ')
-            lines.append(f"  QSS: {short}")
-
-        # Parent chain (3 levels)
-        lines.append("  父级链:")
-        p = w.parentWidget()
-        d = 0
-        while p and d < 3:
-            pad = "  " * d
-            pc = type(p).__name__
-            pn = p.objectName() or ""
-            pg = p.geometry()
-            pl = p.layout()
-            pm = f" LM=({pl.contentsMargins().left()},{pl.contentsMargins().top()},{pl.contentsMargins().right()},{pl.contentsMargins().bottom()})" if pl else ""
-            lines.append(f"{pad}↳ {pc} [{pn}] xy=({pg.x()},{pg.y()}) sz=({pg.width()}x{pg.height()}){pm}")
-            p = p.parentWidget()
-            d += 1
-
-        self._label.setText('\n'.join(lines))
-        self._label.adjustSize()
-
-        # Position near cursor, avoid screen edges
-        sx = pos.x() + 20
-        sy = pos.y() + 20
-        screen = self._app.primaryScreen().availableGeometry()
-        if sx + self._label.width() > screen.right():
-            sx = pos.x() - self._label.width() - 10
-        if sy + self._label.height() > screen.bottom():
-            sy = pos.y() - self._label.height() - 10
-        self._label.move(sx, sy)
-        self._label.show()
-        self._label.raise_()
+        QToolTip.showText(pos, _build_info(widget))
+        return False  # don't consume
 
 
-def install_debug_overlay(app: QApplication) -> DebugOverlay:
-    """Create and start the Shift+hover debug overlay."""
-    return DebugOverlay(app)
+def install_debug_overlay(app: QApplication):
+    """Install global event filter for Shift+hover debugging."""
+    f = _DebugFilter()
+    app.installEventFilter(f)
+    # Keep reference alive
+    app._debug_filter = f
