@@ -166,17 +166,23 @@ class MainWindow(QMainWindow):
 
         # Python module page - placeholder
         self.python_page = QWidget()
-        self.python_page.setLayout(QVBoxLayout())
+        py_layout = QVBoxLayout()
+        py_layout.setContentsMargins(0, 0, 0, 0)
+        self.python_page.setLayout(py_layout)
         self.stack.addWidget(self.python_page)
 
         # WPS module page - placeholder
         self.wps_page = QWidget()
-        self.wps_page.setLayout(QVBoxLayout())
+        wps_layout = QVBoxLayout()
+        wps_layout.setContentsMargins(0, 0, 0, 0)
+        self.wps_page.setLayout(wps_layout)
         self.stack.addWidget(self.wps_page)
 
         # JS module page - placeholder
         self.js_page = QWidget()
-        self.js_page.setLayout(QVBoxLayout())
+        js_layout = QVBoxLayout()
+        js_layout.setContentsMargins(0, 0, 0, 0)
+        self.js_page.setLayout(js_layout)
         self.stack.addWidget(self.js_page)
 
         content_layout.addWidget(self.stack)
