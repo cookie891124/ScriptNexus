@@ -29,6 +29,9 @@ test-results/
 scripts/_temp_script_*.py
 *.temp_clean.csv
 
+# User config (local dev)
+data/config.json
+
 # Database files (local dev)
 data/*.db
 

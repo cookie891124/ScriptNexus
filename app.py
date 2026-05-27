@@ -128,6 +128,7 @@ def main():
     # Show main window
     main_window = MainWindow()
     main_window.set_services(path_detection_service, config_service, deployment_service)
+    main_window.import_export_service = import_export_service
     main_window.set_paths(scripts_dir, whl_pool_dir, templates_dir, db_path)
     main_window.show()
 

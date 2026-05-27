@@ -308,9 +308,8 @@ class PathsPage(QWizardPage):
         Args:
             message: Error message to display
         """
-        # QWizardPage doesn't have showWarningMessage, so we just print for now
-        # In a real UI, the wizard would show the error
-        print(f"Warning: {message}")
+        from PyQt6.QtWidgets import QMessageBox
+        QMessageBox.warning(self, "警告", message)
 
 
 class FinishPage(QWizardPage):

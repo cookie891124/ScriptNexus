@@ -5,6 +5,7 @@ import sqlite3
 import zipfile
 from typing import Optional, List, Dict, Any
 from datetime import datetime
+from xml.sax.saxutils import escape as xml_escape
 
 
 class WpsService:
@@ -58,6 +59,7 @@ class WpsService:
                         name TEXT NOT NULL,
                         tab_id INTEGER,
                         target_app TEXT NOT NULL,
+                        position INTEGER DEFAULT 0,
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         FOREIGN KEY (tab_id) REFERENCES ribbon_tabs(id)
                     )
@@ -77,12 +79,20 @@ class WpsService:
                         group_id INTEGER,
                         script_id INTEGER DEFAULT NULL,
                         target_app TEXT NOT NULL,
+                        position INTEGER DEFAULT 0,
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         FOREIGN KEY (group_id) REFERENCES ribbon_groups(id),
                         FOREIGN KEY (script_id) REFERENCES wps_scripts(id)
                     )
                 """)
                 print("[DB] Created ribbon_buttons table")
+
+            # Migrate: add position column to existing ribbon tables
+            for table in ['ribbon_groups', 'ribbon_buttons']:
+                try:
+                    cursor.execute(f"SELECT position FROM {table} LIMIT 0")
+                except sqlite3.OperationalError:
+                    cursor.execute(f"ALTER TABLE {table} ADD COLUMN position INTEGER DEFAULT 0")
 
             # ===== 脚本表 =====
 
@@ -152,10 +162,11 @@ class WpsService:
                         target_app = row_dict.get('target_app', 'word')
                         main_function = row_dict.get('main_function', '')
 
+                        now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                         cursor.execute("""
-                            INSERT INTO wps_scripts (name, js_code, target_app, main_function)
-                            VALUES (?, ?, ?, ?)
-                        """, (name, js_code, target_app, main_function))
+                            INSERT INTO wps_scripts (name, js_code, target_app, main_function, created_at, updated_at)
+                            VALUES (?, ?, ?, ?, ?, ?)
+                        """, (name, js_code, target_app, main_function, now, now))
 
                     print(f"[Migration] Rebuilt wps_scripts table ({len(rows)} rows) - removed ribbon columns")
 
@@ -197,10 +208,11 @@ class WpsService:
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
 
+        now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         cursor.execute("""
-            INSERT INTO wps_scripts (name, js_code, target_app, main_function)
-            VALUES (?, ?, ?, ?)
-        """, (name, js_code, target_app, main_function))
+            INSERT INTO wps_scripts (name, js_code, target_app, main_function, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (name, js_code, target_app, main_function, now, now))
 
         script_id = cursor.lastrowid
         conn.commit()
@@ -301,7 +313,8 @@ class WpsService:
             return False
 
         values.append(script_id)
-        updates.append("updated_at = CURRENT_TIMESTAMP")
+        updates.append("updated_at = ?")
+        values.insert(-1, datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
 
         query = f"""
             UPDATE wps_scripts
@@ -448,10 +461,17 @@ class WpsService:
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
 
+        # Set position to end of list
+        cursor.execute(
+            "SELECT COALESCE(MAX(position), -1) + 1 FROM ribbon_groups WHERE tab_id = ?",
+            (tab_id,)
+        )
+        pos = cursor.fetchone()[0]
+
         cursor.execute("""
-            INSERT INTO ribbon_groups (name, tab_id, target_app)
-            VALUES (?, ?, ?)
-        """, (name, tab_id, target_app))
+            INSERT INTO ribbon_groups (name, tab_id, target_app, position)
+            VALUES (?, ?, ?, ?)
+        """, (name, tab_id, target_app, pos))
 
         group_id = cursor.lastrowid
         conn.commit()
@@ -487,13 +507,13 @@ class WpsService:
                 SELECT id, name, tab_id, target_app, created_at
                 FROM ribbon_groups
                 WHERE tab_id = ?
-                ORDER BY name
+                ORDER BY position, name
             """, (tab_id,))
         else:
             cursor.execute("""
                 SELECT id, name, tab_id, target_app, created_at
                 FROM ribbon_groups
-                ORDER BY name
+                ORDER BY position, name
             """)
 
         rows = cursor.fetchall()
@@ -536,10 +556,17 @@ class WpsService:
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
 
+        # Set position to end of list
+        cursor.execute(
+            "SELECT COALESCE(MAX(position), -1) + 1 FROM ribbon_buttons WHERE group_id = ?",
+            (group_id,)
+        )
+        pos = cursor.fetchone()[0]
+
         cursor.execute("""
-            INSERT INTO ribbon_buttons (label, group_id, target_app)
-            VALUES (?, ?, ?)
-        """, (label, group_id, target_app))
+            INSERT INTO ribbon_buttons (label, group_id, target_app, position)
+            VALUES (?, ?, ?, ?)
+        """, (label, group_id, target_app, pos))
 
         button_id = cursor.lastrowid
         conn.commit()
@@ -578,7 +605,7 @@ class WpsService:
                 FROM ribbon_buttons rb
                 LEFT JOIN wps_scripts ws ON rb.script_id = ws.id
                 WHERE rb.group_id = ?
-                ORDER BY rb.label
+                ORDER BY rb.position, rb.label
             """, (group_id,))
         elif target_app:
             cursor.execute("""
@@ -587,7 +614,7 @@ class WpsService:
                 FROM ribbon_buttons rb
                 LEFT JOIN wps_scripts ws ON rb.script_id = ws.id
                 WHERE rb.target_app = ?
-                ORDER BY rb.label
+                ORDER BY rb.position, rb.label
             """, (target_app,))
         else:
             cursor.execute("""
@@ -595,7 +622,7 @@ class WpsService:
                        ws.name as script_name, ws.main_function as script_function
                 FROM ribbon_buttons rb
                 LEFT JOIN wps_scripts ws ON rb.script_id = ws.id
-                ORDER BY rb.label
+                ORDER BY rb.position, rb.label
             """)
 
         rows = cursor.fetchall()
@@ -649,6 +676,40 @@ class WpsService:
 
         return success
 
+    def update_group_positions(self, tab_id: int, ordered_group_ids: list) -> None:
+        """Update group positions after drag-and-drop reorder."""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        for i, gid in enumerate(ordered_group_ids):
+            cursor.execute(
+                "UPDATE ribbon_groups SET position = ? WHERE id = ? AND tab_id = ?",
+                (i, gid, tab_id)
+            )
+        conn.commit()
+        conn.close()
+
+    def update_button_positions(self, ordered_button_ids: list) -> None:
+        """Update button positions after drag-and-drop reorder within a group."""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        for i, bid in enumerate(ordered_button_ids):
+            cursor.execute("UPDATE ribbon_buttons SET position = ? WHERE id = ?", (i, bid))
+        conn.commit()
+        conn.close()
+
+    def move_button_to_group(self, button_id: int, new_group_id: int) -> bool:
+        """Move a button to a different group."""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE ribbon_buttons SET group_id = ? WHERE id = ?",
+            (new_group_id, button_id)
+        )
+        conn.commit()
+        success = cursor.rowcount > 0
+        conn.close()
+        return success
+
     def get_button_with_script(self, button_id: int) -> Optional[Dict[str, Any]]:
         """Get a button with its bound script info."""
         conn = sqlite3.connect(self.db_path)
@@ -687,7 +748,7 @@ class WpsService:
         for tab in tabs:
             # Get groups for this tab
             cursor.execute("""
-                SELECT id, name FROM ribbon_groups WHERE tab_id = ? ORDER BY name
+                SELECT id, name FROM ribbon_groups WHERE tab_id = ? ORDER BY position, name
             """, (tab['id'],))
             tab['groups'] = [dict(row) for row in cursor.fetchall()]
 
@@ -699,7 +760,7 @@ class WpsService:
                     FROM ribbon_buttons rb
                     LEFT JOIN wps_scripts ws ON rb.script_id = ws.id
                     WHERE rb.group_id = ?
-                    ORDER BY rb.label
+                    ORDER BY rb.position, rb.label
                 """, (group['id'],))
                 group['buttons'] = [dict(row) for row in cursor.fetchall()]
 
@@ -730,29 +791,30 @@ class WpsService:
 
         for tab in structure:
             tab_id = f"tab_{tab['id']}"
-            xml_parts.append(f'      <mso:tab id="{tab_id}" label="{tab["name"]}">')
+            xml_parts.append(f'      <mso:tab id="{xml_escape(tab_id)}" label="{xml_escape(tab["name"])}">')
 
             for group in tab.get('groups', []):
                 group_id = f"group_{group['id']}"
-                xml_parts.append(f'        <mso:group id="{group_id}" label="{group["name"]}">')
+                xml_parts.append(f'        <mso:group id="{xml_escape(group_id)}" label="{xml_escape(group["name"])}">')
 
                 for button in group.get('buttons', []):
                     button_id = f"btn_{button['id']}"
+                    btn_label = xml_escape(button["label"])
                     # Only generate action if button has bound script
                     if button.get('script_id') and button.get('script_name'):
-                        script_name = button['script_name']
+                        script_name = xml_escape(button['script_name'])
                         xml_parts.append(
-                            f'          <mso:button id="{button_id}" '
+                            f'          <mso:button id="{xml_escape(button_id)}" '
                             f'idM="Project.Module1.{script_name}" '
-                            f'label="{button["label"]}" '
+                            f'label="{btn_label}" '
                             f'onAction="{script_name}" '
                             f'imageMso="ListMacros" />'
                         )
                     else:
                         # Button without script - just shows label, no action
                         xml_parts.append(
-                            f'          <mso:button id="{button_id}" '
-                            f'label="{button["label"]}" '
+                            f'          <mso:button id="{xml_escape(button_id)}" '
+                            f'label="{btn_label}" '
                             f'imageMso="ListMacros" />'
                         )
 

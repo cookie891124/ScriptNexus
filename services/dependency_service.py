@@ -3,6 +3,7 @@
 import os
 import re
 import subprocess
+import sys
 from typing import List, Dict, Any, Optional
 
 
@@ -204,11 +205,8 @@ class DependencyService:
             }
 
         try:
-            # Use pip to install from whl
-            cmd = f'pip install "{whl_path}" --force-reinstall'
             result = subprocess.run(
-                cmd,
-                shell=True,
+                [sys.executable, '-m', 'pip', 'install', whl_path, '--force-reinstall'],
                 capture_output=True,
                 text=True,
                 timeout=60

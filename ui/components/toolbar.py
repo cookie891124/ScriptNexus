@@ -9,7 +9,7 @@ class ToolBar(QWidget):
 
     Features:
         - Title label "脚本管理器"
-        - Action buttons: 一键部署，导入，导出，设置
+        - Action buttons: 导入，导出，设置
 
     Signals:
         deploy_requested: Emitted when deploy button is clicked
@@ -18,7 +18,6 @@ class ToolBar(QWidget):
         settings_requested: Emitted when settings button is clicked
     """
 
-    deploy_requested = pyqtSignal()
     import_requested = pyqtSignal()
     export_requested = pyqtSignal()
     settings_requested = pyqtSignal()
@@ -54,10 +53,6 @@ class ToolBar(QWidget):
         layout.addStretch()
 
         # Action buttons
-        self.deploy_button = self._create_button("一键部署")
-        self.deploy_button.clicked.connect(self.deploy_requested.emit)
-        layout.addWidget(self.deploy_button)
-
         self.import_button = self._create_button("导入")
         self.import_button.clicked.connect(self.import_requested.emit)
         layout.addWidget(self.import_button)

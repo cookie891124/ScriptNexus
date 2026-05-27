@@ -63,7 +63,7 @@ exe = EXE(
     bootloader_ignore_signals=False,
     strip=False,
     console=False,
-    target_arch='arm64',  # Kylin typically uses arm64
+    target_arch='x86_64',  # x86_64 for most enterprise Kylin; arm64 for Kirin/Feiteng chips
 )
 
 coll = COLLECT(

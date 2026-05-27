@@ -1,5 +1,26 @@
-#企业内网环境
-1、不接入互联网，可通过邮件系统接受外网发送的附件大小不超过50M的邮件，基于数据安全任何文件或数据无法离开内网环境；
-2、操作系统为windows10企业版，浏览器Chrome版本为；
-3、安装的WPS版本为WPS Office，其中加载项状态启用，但WPS加载项和COM加载项未启用；
-4、安装python版本为3.10.*
+# ScriptNexus
+
+A PyQt6 desktop application for managing and deploying scripts across WPS Office, Python, and JavaScript.
+
+## Development Requirements
+
+- Python 3.10+
+- PyQt6 >= 6.4.0
+- python-docx >= 0.8.11
+- openpyxl >= 3.0.0
+
+## Build
+
+After any feature change, build the Windows executable:
+
+```bash
+build_windows.bat
+```
+
+Or manually:
+
+```bash
+python -m PyInstaller scriptnexus.spec --distpath dist --workpath build --noconfirm
+```
+
+The output will be in `dist/ScriptNexus.exe`.

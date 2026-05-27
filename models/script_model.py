@@ -1,6 +1,7 @@
 """ScriptModel data model for script management."""
 
 import sqlite3
+from datetime import datetime
 from enum import Enum
 from typing import Any, Optional
 
@@ -112,10 +113,11 @@ class ScriptModel(Repository):
         Returns:
             The ID of the newly created script.
         """
+        now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         self.execute("""
-            INSERT INTO scripts (name, script_type, code, description, parent_id)
-            VALUES (?, ?, ?, ?, ?)
-        """, (name, script_type.value, code, description, parent_id))
+            INSERT INTO scripts (name, script_type, code, description, parent_id, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (name, script_type.value, code, description, parent_id, now, now))
 
         # Get the last inserted ID
         cursor = self.conn.execute("SELECT last_insert_rowid()")
@@ -189,8 +191,11 @@ class ScriptModel(Repository):
         if fields:
             values.append(script_id)
             fields_str = ", ".join(fields)
+            now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            # Insert now before the last element (script_id)
+            values.insert(-1, now)
             self.execute(f"""
-                UPDATE scripts SET {fields_str}, updated_at = CURRENT_TIMESTAMP
+                UPDATE scripts SET {fields_str}, updated_at = ?
                 WHERE id = ?
             """, tuple(values))
 
@@ -226,13 +231,14 @@ class ScriptModel(Repository):
             key: Configuration key.
             value: Configuration value.
         """
+        now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         self.execute("""
             INSERT INTO config (key, value, updated_at)
-            VALUES (?, ?, CURRENT_TIMESTAMP)
+            VALUES (?, ?, ?)
             ON CONFLICT(key) DO UPDATE SET
                 value = excluded.value,
-                updated_at = CURRENT_TIMESTAMP
-        """, (key, value))
+                updated_at = ?
+        """, (key, value, now, now))
 
     # ==================== Dependency Operations ====================
 

@@ -7,18 +7,20 @@ echo    ScriptNexus Windows EXE Build Script
 echo ============================================================
 echo.
 
+set PYTHON=C:\Users\L\AppData\Local\Programs\Python\Python310\python.exe
+
 REM Check PyInstaller
-python -c "import PyInstaller" 2>nul
+%PYTHON% -c "import PyInstaller" 2>nul
 if errorlevel 1 (
     echo Installing PyInstaller...
-    pip install pyinstaller
+    %PYTHON% -m pip install pyinstaller
     echo.
 )
 
 REM Check if icons exist
 if not exist pics\icon.ico (
     echo Generating icons...
-    python tools\generate_icons.py
+    %PYTHON% tools\generate_icons.py
     echo.
 )
 
@@ -29,7 +31,7 @@ if exist dist rmdir /s /q dist
 REM Build executable
 echo Building executable...
 echo.
-pyinstaller --clean --noconfirm scriptnexus.spec
+%PYTHON% -m PyInstaller --clean --noconfirm scriptnexus.spec
 
 if exist dist\ScriptNexus.exe (
     echo.
@@ -38,31 +40,6 @@ if exist dist\ScriptNexus.exe (
     echo ============================================================
     echo.
     echo Output: dist\ScriptNexus.exe
-    echo.
-
-    REM Create distribution package
-    echo Creating distribution package...
-    if not exist dist\ScriptNexus-Package mkdir dist\ScriptNexus-Package
-    copy dist\ScriptNexus.exe dist\ScriptNexus-Package\
-
-    REM Copy templates
-    if exist templates (
-        xcopy templates dist\ScriptNexus-Package\templates\ /E /I /Y
-    )
-
-    REM Copy data (default config)
-    if exist data (
-        xcopy data dist\ScriptNexus-Package\data\ /E /I /Y
-    )
-
-    REM Copy pics (icons)
-    if exist pics (
-        xcopy pics dist\ScriptNexus-Package\pics\ /E /I /Y
-    )
-
-    echo.
-    echo Distribution package ready: dist\ScriptNexus-Package\
-    echo.
 
     REM Get file size
     for %%I in (dist\ScriptNexus.exe) do echo File size: %%~zI bytes
@@ -77,4 +54,4 @@ if exist dist\ScriptNexus.exe (
 )
 
 echo.
-pause
+exit /b 0

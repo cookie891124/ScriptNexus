@@ -4,6 +4,7 @@ import os
 import sqlite3
 import subprocess
 import time
+from datetime import datetime
 from typing import Optional, List, Dict, Any
 
 
@@ -56,7 +57,7 @@ class PythonService:
         Args:
             path: Path to the scripts directory.
         """
-        if not os.path.exists(path):
+        if path and path.strip() and not os.path.exists(path):
             os.makedirs(path)
         self.scripts_dir = path
 
@@ -101,10 +102,11 @@ class PythonService:
                         description = f"From file: {rel_path}"
 
                         # Insert into database with file_path
+                        now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                         cursor.execute("""
-                            INSERT INTO scripts (name, code, description, parent_id, script_type, file_path)
-                            VALUES (?, ?, ?, NULL, 'python', ?)
-                        """, (script_name, code, description, filepath))
+                            INSERT INTO scripts (name, code, description, parent_id, script_type, file_path, created_at, updated_at)
+                            VALUES (?, ?, ?, NULL, 'python', ?, ?, ?)
+                        """, (script_name, code, description, filepath, now, now))
 
                         synced += 1
                     else:
@@ -114,11 +116,12 @@ class PythonService:
 
                         # Update file_path if it's empty or the script was moved
                         if not existing_path or existing_path != filepath:
+                            now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                             cursor.execute("""
                                 UPDATE scripts
-                                SET file_path = ?, updated_at = CURRENT_TIMESTAMP
+                                SET file_path = ?, updated_at = ?
                                 WHERE id = ?
-                            """, (filepath, script_id))
+                            """, (filepath, now, script_id))
                             updated += 1
 
         conn.commit()
@@ -142,10 +145,11 @@ class PythonService:
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
 
+        now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         cursor.execute("""
-            INSERT INTO scripts (name, code, description, parent_id, script_type, file_path)
-            VALUES (?, ?, ?, ?, 'python', ?)
-        """, (name, code, description, parent_id, file_path))
+            INSERT INTO scripts (name, code, description, parent_id, script_type, file_path, created_at, updated_at)
+            VALUES (?, ?, ?, ?, 'python', ?, ?, ?)
+        """, (name, code, description, parent_id, file_path, now, now))
 
         script_id = cursor.lastrowid
         conn.commit()
@@ -269,8 +273,9 @@ class PythonService:
         file_path = cursor.fetchone()[0]
 
         # Build update query
-        updates = ["code = ?", "updated_at = CURRENT_TIMESTAMP"]
-        values = [code]
+        now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        updates = ["code = ?", "updated_at = ?"]
+        values = [code, now]
 
         for key, value in kwargs.items():
             if key in ("name", "description", "parent_id", "file_path"):
@@ -395,11 +400,8 @@ class PythonService:
             with open(temp_path, 'w', encoding='utf-8') as f:
                 f.write(script["code"])
 
-            # Run via PowerShell with working directory set to scripts_dir
-            ps_command = f'python "{temp_path}"'
             process = subprocess.Popen(
-                ps_command,
-                shell=True,
+                [sys.executable, '-u', temp_path],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,

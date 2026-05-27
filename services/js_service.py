@@ -2,11 +2,22 @@
 
 import os
 import json
+import re
 import sqlite3
 import shutil
 import subprocess
 from datetime import datetime
 from typing import Optional, List, Dict, Any
+from urllib.parse import urlparse
+
+ALLOWED_URL_SCHEMES = {'http', 'https'}
+
+def validate_url(url: str) -> bool:
+    """Return True if url uses an allowed scheme."""
+    if not url:
+        return False
+    parsed = urlparse(url)
+    return parsed.scheme in ALLOWED_URL_SCHEMES
 
 
 class JsService:
@@ -32,6 +43,7 @@ class JsService:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
                 url TEXT NOT NULL,
+                description TEXT DEFAULT '',
                 parent_folder TEXT DEFAULT '',
                 position INTEGER DEFAULT 0,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -39,38 +51,52 @@ class JsService:
             )
         """)
 
+        # Migrate: add description column if missing (for existing databases)
+        try:
+            cursor.execute("SELECT description FROM js_scripts LIMIT 0")
+        except sqlite3.OperationalError:
+            cursor.execute("ALTER TABLE js_scripts ADD COLUMN description TEXT DEFAULT ''")
+
         conn.commit()
         conn.close()
 
     def set_chrome_path(self, path: str) -> None:
-        """Set the Chrome profile directory path.
+        """Set the Chrome profile directory or Bookmarks file path.
 
         Args:
-            path: Path to the Chrome profile directory (containing Bookmarks file).
+            path: Path to the Chrome profile directory or Bookmarks file.
         """
         if path and path.strip():
             self.chrome_path = path.strip()
 
-    def add_script(self, name: str, url: str, parent_folder: str = "",
-                   position: int = 0) -> int:
-        """Add a new JS script bookmark.
+    def _get_bookmarks_file(self) -> Optional[str]:
+        """Get the actual Bookmarks file path.
 
-        Args:
-            name: Script/bookmark name.
-            url: URL for the bookmark.
-            parent_folder: Parent folder name in bookmarks bar.
-            position: Position in the folder.
+        Handles both cases: chrome_path as a directory (appends 'Bookmarks')
+        or as the file itself.
 
         Returns:
-            The ID of the newly created script.
+            Full path to Bookmarks file, or None if chrome_path is not set.
         """
+        if not self.chrome_path:
+            return None
+        if os.path.basename(self.chrome_path) == "Bookmarks":
+            return self.chrome_path
+        return os.path.join(self.chrome_path, "Bookmarks")
+
+    def add_script(self, name: str, url: str, parent_folder: str = "",
+                   position: int = 0, description: str = "") -> int:
+        """Add a new JS script bookmark."""
+        if url and not validate_url(url):
+            raise ValueError(f"不支持的 URL 协议: {url}。仅支持 http/https。")
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
 
+        now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         cursor.execute("""
-            INSERT INTO js_scripts (name, url, parent_folder, position)
-            VALUES (?, ?, ?, ?)
-        """, (name, url, parent_folder, position))
+            INSERT INTO js_scripts (name, url, description, parent_folder, position, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (name, url, description, parent_folder, position, now, now))
 
         script_id = cursor.lastrowid
         conn.commit()
@@ -92,7 +118,7 @@ class JsService:
         cursor = conn.cursor()
 
         cursor.execute("""
-            SELECT id, name, url, parent_folder, position, created_at, updated_at
+            SELECT id, name, url, description, parent_folder, position, created_at, updated_at
             FROM js_scripts
             WHERE id = ?
         """, (script_id,))
@@ -116,9 +142,9 @@ class JsService:
         cursor = conn.cursor()
 
         cursor.execute("""
-            SELECT id, name, url, parent_folder, position, created_at, updated_at
+            SELECT id, name, url, description, parent_folder, position, created_at, updated_at
             FROM js_scripts
-            ORDER BY name
+            ORDER BY parent_folder, position, name
         """)
 
         rows = cursor.fetchall()
@@ -146,7 +172,7 @@ class JsService:
             return False
 
         # Build update query
-        allowed_fields = {"name", "url", "parent_folder", "position"}
+        allowed_fields = {"name", "url", "description", "parent_folder", "position"}
         updates = []
         values = []
 
@@ -160,7 +186,8 @@ class JsService:
             return False
 
         values.append(script_id)
-        updates.append("updated_at = CURRENT_TIMESTAMP")
+        updates.append("updated_at = ?")
+        values.insert(-1, datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
 
         query = f"""
             UPDATE js_scripts
@@ -243,8 +270,8 @@ class JsService:
         Returns:
             Parsed bookmarks dict, or None if file doesn't exist or is invalid.
         """
-        bookmarks_file = os.path.join(self.chrome_path, "Bookmarks")
-        if not os.path.exists(bookmarks_file):
+        bookmarks_file = self._get_bookmarks_file()
+        if not bookmarks_file or not os.path.exists(bookmarks_file):
             return None
 
         try:
@@ -304,7 +331,9 @@ class JsService:
                 "message": "请先关闭 Chrome 浏览器再部署书签\n（Chrome 运行时会锁定书签文件）"
             }
 
-        bookmarks_file = os.path.join(self.chrome_path, "Bookmarks")
+        bookmarks_file = self._get_bookmarks_file()
+        if not bookmarks_file:
+            return {"success": False, "message": "无法确定 Chrome 书签文件路径"}
         scripts = self.get_all_scripts()
 
         # Read existing bookmarks or start fresh
@@ -329,6 +358,21 @@ class JsService:
         if "children" not in bookmark_bar:
             bookmark_bar["children"] = []
 
+        # Clean up legacy managed folders (e.g., old "脚本" folder from earlier versions)
+        managed_guids = {"snx-root-" + target_folder}
+        legacy_names = {"脚本"}
+        bookmark_bar["children"] = [
+            c for c in bookmark_bar["children"]
+            if not (
+                c.get("type") == "folder"
+                and (
+                    c.get("name") in legacy_names
+                    or (c.get("guid", "").startswith("snx-root-")
+                        and c.get("guid") not in managed_guids)
+                )
+            )
+        ]
+
         # Find or create the top-level JS Scripts folder
         now = datetime.now().isoformat()
         root_node = None
@@ -341,12 +385,14 @@ class JsService:
             root_node = {
                 "children": [],
                 "date_added": now,
-                "date_modified": now,
-                "guid": target_folder,
+                "guid": "snx-root-" + target_folder,
                 "name": target_folder,
                 "type": "folder",
             }
             bookmark_bar["children"].insert(0, root_node)
+        else:
+            # Ensure existing folder has the managed guid
+            root_node["guid"] = "snx-root-" + target_folder
 
         # Group scripts: root folder vs subfolders
         root_items = []
@@ -354,7 +400,9 @@ class JsService:
         for script in scripts:
             sub = script.get("parent_folder", "").strip()
             entry = {
-                "date_added": now,
+                "date_added": script.get("created_at", now),
+                "date_modified": script.get("updated_at", now),
+                "guid": f"snx-js-{script['id']}",
                 "id": str(script["id"]),
                 "name": script["name"],
                 "type": "url",
@@ -365,13 +413,16 @@ class JsService:
             else:
                 root_items.append(entry)
 
-        # Build root node children: direct items + subfolder nodes
-        root_node["children"] = root_items
+        # Save original children before replacing, so we can reuse existing subfolders
+        original_children = root_node.get("children", [])
+
+        # Build root node: root items first, then subfolder nodes
+        new_children = list(root_items)
 
         for sub_name, items in subfolders.items():
-            # Reuse existing subfolder or create new
+            # Reuse existing subfolder to preserve its guid / date_added
             sub_node = None
-            for child in root_node.get("children", []):
+            for child in original_children:
                 if child.get("name") == sub_name and child.get("type") == "folder":
                     sub_node = child
                     break
@@ -379,21 +430,23 @@ class JsService:
                 sub_node = {
                     "children": [],
                     "date_added": now,
-                    "date_modified": now,
                     "guid": f"{target_folder}/{sub_name}",
                     "name": sub_name,
                     "type": "folder",
                 }
-                root_node["children"].append(sub_node)
             sub_node["children"] = items
             sub_node["date_modified"] = now
+            new_children.append(sub_node)
+
+        root_node["children"] = new_children
 
         root_node["date_modified"] = now
 
         # Backup existing before writing
         if os.path.exists(bookmarks_file):
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            backup_file = os.path.join(self.chrome_path, f"Bookmarks.bak.{timestamp}")
+            bookmarks_dir = os.path.dirname(bookmarks_file)
+            backup_file = os.path.join(bookmarks_dir, f"Bookmarks.bak.{timestamp}")
             try:
                 shutil.copy2(bookmarks_file, backup_file)
             except Exception:
@@ -409,7 +462,7 @@ class JsService:
 
             return {
                 "success": True,
-                "message": f"已部署 {len(managed_items)} 个书签到文件夹「{target_folder}」\n\n请重启 Chrome 浏览器查看。",
+                "message": f"已部署 {len(scripts)} 个书签到文件夹「{target_folder}」\n\n请重启 Chrome 浏览器查看。",
                 "preview": preview,
             }
         except PermissionError:
@@ -433,13 +486,7 @@ class JsService:
         url = script["url"]
 
         try:
-            # Try to open in Chrome using start command
-            subprocess.Popen(
-                f'start chrome "{url}"',
-                shell=True,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL
-            )
+            os.startfile(url)
             return True
         except Exception as e:
             print(f"Error opening Chrome: {e}")

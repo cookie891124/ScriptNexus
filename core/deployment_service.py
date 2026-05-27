@@ -1,4 +1,4 @@
-"""Deployment service for one-click deployment of WPS templates and Chrome bookmarks.
+"""Deployment service for one-click deployment of WPS templates.
 
 Key discovery: WPS supports JavaScript macros stored in JDEData.bin (XML format).
 - Ribbon config: %APPDATA%\Kingsoft\office6\customui\wps.officeUI (global for all docs)
@@ -8,11 +8,13 @@ This approach completely bypasses VBA and COM!
 """
 
 import os
+import re
 import zipfile
 import shutil
 import glob
 from datetime import datetime
 from typing import Dict, Any, List, Optional
+from xml.sax.saxutils import escape as xml_escape
 
 
 # WPS user data directory
@@ -75,12 +77,11 @@ class DeploymentService:
             return False
 
     def deploy_all(self) -> Dict[str, Any]:
-        """Deploy all content: WPS Word, Excel JS macros + Chrome bookmarks."""
+        """Deploy WPS Word and Excel JS macros."""
         result = {
             'success': True,
             'wps_word': False,
             'wps_excel': False,
-            'chrome_bookmarks': False,
             'errors': [],
             'messages': {}
         }
@@ -111,16 +112,7 @@ class DeploymentService:
             result['errors'].append(f'Excel deployment error: {str(e)}')
             result['success'] = False
 
-        # Deploy Chrome bookmarks
-        try:
-            bookmarks_deployed = self.js_service.deploy_bookmarks()
-            if bookmarks_deployed:
-                result['chrome_bookmarks'] = True
-        except Exception as e:
-            result['chrome_bookmarks'] = False
-            result['errors'].append(f'Chrome bookmarks error: {str(e)}')
-
-        if result['errors'] and not (result['wps_word'] or result['wps_excel'] or result['chrome_bookmarks']):
+        if result['errors'] and not (result['wps_word'] or result['wps_excel']):
             result['success'] = False
 
         return result
@@ -240,15 +232,15 @@ class DeploymentService:
 
         for tab in structure:
             tab_id = f"tab_{tab['id']}"
-            xml += f'      <mso:tab label="{tab["name"]}" id="{tab_id}">\n'
+            xml += f'      <mso:tab label="{xml_escape(tab["name"])}" id="{xml_escape(tab_id)}">\n'
 
             for group in tab.get('groups', []):
                 group_id = f"group_{group['id']}"
-                xml += f'        <mso:group label="{group["name"]}" id="{group_id}">\n'
+                xml += f'        <mso:group label="{xml_escape(group["name"])}" id="{xml_escape(group_id)}">\n'
 
                 for button in group.get('buttons', []):
                     button_id = f"btn_{button['id']}"
-                    btn_label = button['label']
+                    btn_label = xml_escape(button['label'])
 
                     # Check if button has bound script
                     if button.get('script_id'):
@@ -259,25 +251,25 @@ class DeploymentService:
                             func_names = re.findall(r'function\s+(\w+)\s*\(', script['js_code'])
                             if func_names:
                                 # Use the first function name found
-                                actual_func_name = func_names[0]
-                                xml += f'          <mso:button id="{button_id}" '
+                                actual_func_name = xml_escape(func_names[0])
+                                xml += f'          <mso:button id="{xml_escape(button_id)}" '
                                 xml += f'idM="Project.NewMacros.{actual_func_name}" '
                                 xml += f'label="{btn_label}" '
                                 xml += f'onAction="{actual_func_name}" '
                                 xml += f'imageMso="ListMacros" />\n'
                             else:
                                 # No function found - display only
-                                xml += f'          <mso:button id="{button_id}" '
+                                xml += f'          <mso:button id="{xml_escape(button_id)}" '
                                 xml += f'label="{btn_label}" '
                                 xml += f'imageMso="ListMacros" />\n'
                         else:
                             # No script code - display only
-                            xml += f'          <mso:button id="{button_id}" '
+                            xml += f'          <mso:button id="{xml_escape(button_id)}" '
                             xml += f'label="{btn_label}" '
                             xml += f'imageMso="ListMacros" />\n'
                     else:
                         # Button without action (display only)
-                        xml += f'          <mso:button id="{button_id}" '
+                        xml += f'          <mso:button id="{xml_escape(button_id)}" '
                         xml += f'label="{btn_label}" '
                         xml += f'imageMso="ListMacros" />\n'
 
@@ -755,13 +747,12 @@ class DeploymentService:
         """Check current deployment status for tray display.
 
         Returns:
-            Dictionary with 'word', 'excel', 'chrome' keys
+            Dictionary with 'word', 'excel' keys
             Values: 'ok', 'partial', 'error', 'unknown'
         """
         result = {
             'word': 'unknown',
             'excel': 'unknown',
-            'chrome': 'unknown',
         }
 
         # Check Word ribbon deployment
@@ -795,37 +786,5 @@ class DeploymentService:
         else:
             result['excel'] = 'error'
 
-        # Check Chrome bookmarks deployment
-        if self.js_service and self.js_service.chrome_path:
-            bookmarks_file = os.path.join(self.js_service.chrome_path, "Bookmarks")
-            if os.path.exists(bookmarks_file):
-                try:
-                    import json
-                    with open(bookmarks_file, 'r', encoding='utf-8') as f:
-                        bookmarks = json.load(f)
-                        if self._has_script_bookmarks(bookmarks):
-                            result['chrome'] = 'ok'
-                        else:
-                            result['chrome'] = 'error'
-                except Exception:
-                    result['chrome'] = 'unknown'
-            else:
-                result['chrome'] = 'error'
-
         return result
 
-    def _has_script_bookmarks(self, bookmarks_data: Dict) -> bool:
-        """Check if Chrome bookmarks contain the JS Scripts folder.
-
-        Args:
-            bookmarks_data: Parsed Chrome bookmarks JSON
-
-        Returns:
-            True if the managed folder exists in bookmark bar
-        """
-        bookmark_bar = bookmarks_data.get('roots', {}).get('bookmark_bar', {})
-        children = bookmark_bar.get('children', [])
-        for child in children:
-            if child.get('name') == 'JS Scripts' and child.get('type') == 'folder':
-                return True
-        return False

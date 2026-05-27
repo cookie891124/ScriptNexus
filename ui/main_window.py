@@ -45,6 +45,7 @@ class MainWindow(QMainWindow):
         self.path_detection_service = None
         self.config_service = None
         self.deployment_service = None
+        self.import_export_service = None
 
         # Paths (will be set by set_paths, use current directory as default)
         base_dir = os.path.dirname(os.path.dirname(__file__))
@@ -74,13 +75,9 @@ class MainWindow(QMainWindow):
         self.config_service = config_service
         self.deployment_service = deployment_service
 
-        # Update system tray with deployment service
-        if hasattr(self, 'system_tray') and deployment_service:
-            self.system_tray.deployment_service = deployment_service
-            self.system_tray.refresh_status()
-
         # Load paths from config if available
         self._load_paths_from_config()
+        self._update_tray_paths()
 
         # Refresh dashboard stats on initial load
         self._refresh_dashboard()
@@ -104,7 +101,7 @@ class MainWindow(QMainWindow):
         excel_startup = self.config_service.get("paths.wps_excel_startup", "") if self.config_service else ""
 
         # Update modules with paths
-        if self.python_module:
+        if self.python_module and scripts_dir and scripts_dir.strip():
             self.python_module.set_scripts_dir(scripts_dir)
         if self.wps_module:
             self.wps_module.set_paths(templates_dir, word_startup, excel_startup)
@@ -241,6 +238,9 @@ class MainWindow(QMainWindow):
         if self.templates_dir:
             self.wps_module.set_paths(self.templates_dir, word_startup, excel_startup)
 
+        # Pass deployment service for WPS deploy button
+        self.wps_module.deployment_service = self.deployment_service
+
         # Connect signals for dashboard update
         self.wps_module.script_added.connect(self._on_script_changed)
         self.wps_module.script_deleted.connect(self._on_script_changed)
@@ -289,19 +289,31 @@ class MainWindow(QMainWindow):
         self.nav_bar.navigation_requested.connect(self.navigation_requested.emit)
 
         # ToolBar signals
-        self.toolbar.deploy_requested.connect(self._on_deploy_requested)
-        self.toolbar.import_requested.connect(self.import_requested.emit)
-        self.toolbar.export_requested.connect(self.export_requested.emit)
+        self.toolbar.import_requested.connect(self._on_import_requested)
+        self.toolbar.export_requested.connect(self._on_export_requested)
         self.toolbar.settings_requested.connect(self._on_settings_requested)
 
         # System tray signals
-        self.system_tray.deploy_triggered.connect(self._on_deploy_requested)
+        self._update_tray_paths()
+
+    def _update_tray_paths(self):
+        """Pass current paths to system tray quick-entry menu."""
+        if hasattr(self, 'system_tray'):
+            scripts_dir = self.config_service.get("paths.scripts_dir", "") if self.config_service else self.scripts_dir
+            word_startup = self.config_service.get("paths.wps_word_startup", "") if self.config_service else ""
+            excel_startup = self.config_service.get("paths.wps_excel_startup", "") if self.config_service else ""
+            chrome_bookmarks = self.config_service.get("paths.chrome_bookmarks", "") if self.config_service else ""
+            self.system_tray.set_paths(
+                python_scripts=scripts_dir,
+                wps_word=word_startup,
+                wps_excel=excel_startup,
+                chrome_bookmarks=chrome_bookmarks,
+            )
 
     def _setup_system_tray(self):
         """Set up the system tray integration."""
         self.system_tray = SystemTray()
         self.system_tray.show_main_window.connect(self._on_show_main_window)
-        self.system_tray.deploy_triggered.connect(self._on_deploy_requested)
         self.system_tray.quit_triggered.connect(self.close)
 
     def _on_navigation_requested(self, name):
@@ -354,75 +366,84 @@ class MainWindow(QMainWindow):
                 # Reload paths from config and update modules
                 self._reload_paths_from_config()
 
-    def _on_deploy_requested(self):
-        """Handle deploy button click."""
-        if not self.deployment_service:
-            QMessageBox.warning(
-                self,
-                "警告",
-                "部署服务未初始化"
-            )
+    def _on_export_requested(self):
+        """Handle export button click."""
+        from ui.dialogs.export_dialog import ExportDialog
+
+        dlg = ExportDialog(
+            scripts_dir=self.scripts_dir,
+            templates_dir=self.templates_dir,
+            db_path=self.db_path,
+            parent=self,
+        )
+        if dlg.exec() != ExportDialog.DialogCode.Accepted:
             return
 
-        # Update template directories from config before deployment
-        word_template_dir = self.config_service.get("paths.wps_word_startup", "")
-        excel_template_dir = self.config_service.get("paths.wps_excel_startup", "")
-        if word_template_dir:
-            self.deployment_service.word_template_dir = word_template_dir
-        if excel_template_dir:
-            self.deployment_service.excel_template_dir = excel_template_dir
+        selections = dlg.get_selections()
+        output_path = selections.pop('output_path')
 
-        # Show progress message
-        QMessageBox.information(
-            self,
-            "一键部署",
-            "正在部署到 WPS 和 Chrome...\n\n请确保 WPS Office 已关闭。"
+        if not self.import_export_service:
+            QMessageBox.warning(self, "错误", "导入/导出服务未初始化，请重启应用")
+            return
+
+        result = self.import_export_service.export_package_with_selection(
+            selections, output_path
         )
 
-        # Execute deployment
-        result = self.deployment_service.deploy_all()
-
-        # Show result with detailed messages
-        messages = []
-
-        # Word template status
-        if result['wps_word']:
-            msg = result.get('messages', {}).get('wps_word', 'Word 模板已部署')
-            messages.append(f"✓ {msg}")
-        else:
-            msg = result.get('messages', {}).get('wps_word', '可能没有 Word 脚本或启动目录未配置')
-            messages.append(f"○ Word 模板 - {msg}")
-
-        # Excel template status
-        if result['wps_excel']:
-            msg = result.get('messages', {}).get('wps_excel', 'Excel 模板已部署')
-            messages.append(f"✓ {msg}")
-        else:
-            msg = result.get('messages', {}).get('wps_excel', '可能没有 Excel 脚本或启动目录未配置')
-            messages.append(f"○ Excel 模板 - {msg}")
-
-        # Chrome bookmarks status
-        if result['chrome_bookmarks']:
-            messages.append("✓ Chrome 书签已部署")
-        else:
-            messages.append("○ Chrome 书签 - 未部署（可能没有 JS 脚本或 Chrome 路径未配置）")
-
-        # Show errors if any
-        if result['errors']:
-            messages.append("")
-            messages.append("错误:")
-            for error in result['errors']:
-                messages.append(f"  - {error}")
-
-        message = "\n".join(messages)
         if result['success']:
-            QMessageBox.information(self, "部署完成", message)
+            counts_str = ', '.join(f'{k}: {v}' for k, v in result.get('counts', {}).items() if v)
+            QMessageBox.information(
+                self, "导出成功",
+                f"已导出到:\n{output_path}\n\n导出统计:\n{counts_str}"
+            )
         else:
-            QMessageBox.warning(self, "部署部分失败", message)
+            QMessageBox.warning(self, "导出失败", result.get('error', '未知错误'))
 
-        # Refresh tray status after deployment
-        if hasattr(self, 'system_tray'):
-            self.system_tray.refresh_status()
+    def _on_import_requested(self):
+        """Handle import button click."""
+        from ui.dialogs.import_dialog import ImportDialog
+
+        if not self.import_export_service:
+            QMessageBox.warning(self, "错误", "导入/导出服务未初始化，请重启应用")
+            return
+
+        dlg = ImportDialog(
+            scripts_dir=self.scripts_dir,
+            templates_dir=self.templates_dir,
+            db_path=self.db_path,
+            parent=self,
+        )
+        if dlg.exec() != ImportDialog.DialogCode.Accepted:
+            return
+
+        options = dlg.get_import_options()
+
+        reply = QMessageBox.question(
+            self, "确认导入",
+            f"即将导入文件:\n{options['zip_path']}\n\n"
+            f"模式: {'覆盖' if options['mode'] == 'overwrite' else '新增'}\n\n"
+            f"导入后将刷新当前页面。是否继续?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+
+        result = self.import_export_service.import_package_with_options(
+            options['zip_path'], options['mode']
+        )
+
+        if result['success']:
+            imported = '\n'.join(f"  ✓ {item}" for item in result['imported'])
+            QMessageBox.information(
+                self, "导入成功",
+                f"已导入:\n{imported}\n\n正在刷新..."
+            )
+            # Reload config and refresh all modules
+            self._reload_paths_from_config()
+            self._refresh_modules()
+            self._refresh_dashboard()
+        else:
+            QMessageBox.warning(self, "导入失败", result.get('error', '未知错误'))
 
     def _reload_paths_from_config(self):
         """Reload paths from config service and update modules."""
@@ -436,26 +457,21 @@ class MainWindow(QMainWindow):
         word_startup = self.config_service.get("paths.wps_word_startup", "")
         excel_startup = self.config_service.get("paths.wps_excel_startup", "")
 
-        # Update paths
-        self.set_paths(scripts_dir, whl_pool_dir, templates_dir)
+        # Update paths (only when path is non-empty)
+        if scripts_dir and scripts_dir.strip():
+            self.set_paths(scripts_dir, whl_pool_dir, templates_dir)
 
         # Update deployment service wps_service paths
         if self.deployment_service and self.deployment_service.wps_service:
             self.deployment_service.wps_service.set_paths(templates_dir, word_startup, excel_startup)
 
         # Update JS module chrome path
-        if self.js_module and chrome_bookmarks:
+        if self.js_module and chrome_bookmarks and chrome_bookmarks.strip():
             self.js_module.set_chrome_path(chrome_bookmarks)
 
         # Refresh module displays
         self._refresh_modules()
-
-        # Show refresh message
-        QMessageBox.information(
-            self,
-            "设置已保存",
-            "配置已保存并应用。"
-        )
+        self._update_tray_paths()
 
     def _refresh_modules(self):
         """Refresh all modules to reflect new paths."""
@@ -471,7 +487,7 @@ class MainWindow(QMainWindow):
 
         # Refresh WPS module
         if self.wps_module:
-            self.wps_module._refresh_list()
+            self.wps_module._refresh_all()
 
         # Refresh JS module
         if self.js_module:

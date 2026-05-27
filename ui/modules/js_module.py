@@ -68,6 +68,15 @@ class ScriptDialog(QDialog):
 
         layout.addLayout(row)
 
+        # Description (multi-line)
+        layout.addWidget(QLabel("功能描述"))
+        self.desc_input = QTextEdit()
+        self.desc_input.setFont(QFont("Microsoft YaHei", 9))
+        self.desc_input.setPlaceholderText("脚本功能描述（可选）")
+        self.desc_input.setMaximumHeight(60)
+        self.desc_input.setAcceptRichText(False)
+        layout.addWidget(self.desc_input)
+
         # URL (multi-line, below folder)
         layout.addWidget(QLabel("脚本 URL (bookmarklet 或远程地址)"))
         self.url_input = QTextEdit()
@@ -106,6 +115,7 @@ class ScriptDialog(QDialog):
     def _load_data(self):
         if self.is_edit_mode and self.script_data:
             self.name_input.setText(self.script_data.get("name", ""))
+            self.desc_input.setPlainText(self.script_data.get("description", ""))
             self.url_input.setPlainText(self.script_data.get("url", ""))
             folder = self.script_data.get("parent_folder", "")
             idx = self.folder_combo.findText(folder)
@@ -136,6 +146,7 @@ class ScriptDialog(QDialog):
 
         return {
             "name": self.name_input.text().strip(),
+            "description": self.desc_input.toPlainText().strip(),
             "url": self.url_input.toPlainText().strip(),
             "parent_folder": self.folder_combo.currentText().strip(),
             "position": position,
@@ -238,9 +249,11 @@ class JsModule(QWidget):
         # ---- Main content: splitter ----
         splitter = QSplitter(Qt.Orientation.Horizontal)
         splitter.setHandleWidth(1)
+        splitter.setChildrenCollapsible(False)
 
         # === Left: script list ===
         list_panel = QWidget()
+        list_panel.setMinimumWidth(180)
         ll = QVBoxLayout()
         ll.setContentsMargins(0, 0, 0, 0)
         ll.setSpacing(0)
@@ -260,6 +273,7 @@ class JsModule(QWidget):
         # === Right: vertical split (details top / preview bottom) ===
         vsplit = QSplitter(Qt.Orientation.Vertical)
         vsplit.setHandleWidth(1)
+        vsplit.setChildrenCollapsible(False)
 
         # -- Details panel --
         detail_panel = QWidget()
@@ -276,6 +290,8 @@ class JsModule(QWidget):
         self.detail_form.setSpacing(10)
 
         self.detail_name = QLabel("-")
+        self.detail_desc = QLabel("-")
+        self.detail_desc.setWordWrap(True)
         self.detail_url = QLabel("-")
         self.detail_url.setWordWrap(True)
         self.detail_url.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
@@ -283,6 +299,7 @@ class JsModule(QWidget):
         self.detail_pos = QLabel("-")
 
         self.detail_form.addRow("脚本名称:", self.detail_name)
+        self.detail_form.addRow("功能描述:", self.detail_desc)
         self.detail_form.addRow("URL:", self.detail_url)
         self.detail_form.addRow("书签文件夹:", self.detail_folder)
         self.detail_form.addRow("排序位置:", self.detail_pos)
@@ -335,9 +352,26 @@ class JsModule(QWidget):
     def _refresh_list(self):
         self.script_list.clear()
         scripts = self.js_service.get_all_scripts()
+        last_folder = None
         for s in scripts:
-            folder = s.get("parent_folder", "") or "JS Scripts"
-            item = QListWidgetItem(f"{s['name']}  —  {folder}")
+            desc = s.get("description", "")
+            label = s["name"]
+            if desc:
+                label += f"  —  {desc}"
+            folder = s.get("parent_folder", "")
+            # Insert folder header when folder changes
+            if folder != last_folder:
+                folder_name = folder or "JS Scripts"
+                header = QListWidgetItem(f"▸ {folder_name}")
+                header.setFlags(Qt.ItemFlag.NoItemFlags)  # non-selectable
+                header.setData(Qt.ItemDataRole.UserRole, None)
+                font = header.font()
+                font.setBold(True)
+                header.setFont(font)
+                header.setForeground(Qt.GlobalColor.gray)
+                self.script_list.addItem(header)
+                last_folder = folder
+            item = QListWidgetItem(f"    {label}")
             item.setData(Qt.ItemDataRole.UserRole, s["id"])
             self.script_list.addItem(item)
 
@@ -347,18 +381,24 @@ class JsModule(QWidget):
             self._clear_details()
             return
         sid = sel[0].data(Qt.ItemDataRole.UserRole)
+        if sid is None:  # folder header, skip
+            return
         if sid:
             script = self.js_service.get_script(sid)
             if script:
                 self._show_details(script)
 
     def _clear_details(self):
-        for w in [self.detail_name, self.detail_url, self.detail_folder, self.detail_pos]:
+        for w in [self.detail_name, self.detail_desc, self.detail_url, self.detail_folder, self.detail_pos]:
             w.setText("-")
 
     def _show_details(self, s):
         self.detail_name.setText(s.get("name", "-"))
-        self.detail_url.setText(s.get("url", "-"))
+        self.detail_desc.setText(s.get("description", "") or "-")
+        url = s.get("url", "-")
+        if len(url) > 200:
+            url = url[:197] + "..."
+        self.detail_url.setText(url)
         self.detail_folder.setText(s.get("parent_folder", "") or "JS Scripts")
         self.detail_pos.setText(str(s.get("position", 0)))
 
@@ -371,7 +411,8 @@ class JsModule(QWidget):
             data = dlg.get_script_data()
             self.js_service.add_script(name=data["name"], url=data["url"],
                                        parent_folder=data["parent_folder"],
-                                       position=data["position"])
+                                       position=data["position"],
+                                       description=data["description"])
             self._refresh_list()
             self.script_added.emit()
 
@@ -382,6 +423,7 @@ class JsModule(QWidget):
             return
         sid = sel[0].data(Qt.ItemDataRole.UserRole)
         if not sid:
+            QMessageBox.warning(self, "警告", "请选择脚本条目而非文件夹标题")
             return
         script = self.js_service.get_script(sid)
         if not script:
@@ -392,6 +434,7 @@ class JsModule(QWidget):
         if dlg.exec() == QDialog.DialogCode.Accepted:
             data = dlg.get_script_data()
             self.js_service.update_script(sid, name=data["name"], url=data["url"],
+                                          description=data["description"],
                                           parent_folder=data["parent_folder"],
                                           position=data["position"])
             self._refresh_list()
@@ -445,6 +488,7 @@ class JsModule(QWidget):
             return
         sid = sel[0].data(Qt.ItemDataRole.UserRole)
         if not sid:
+            QMessageBox.warning(self, "警告", "请选择脚本条目而非文件夹标题")
             return
         ok = self.js_service.open_in_chrome(sid)
         if not ok:

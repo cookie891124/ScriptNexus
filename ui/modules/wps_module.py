@@ -17,6 +17,15 @@ from PyQt6.QtGui import (
 )
 from PyQt6.QtWidgets import QGraphicsItem
 
+# ===== Ribbon Tree Item =====
+
+class _RibbonTreeItem(QTreeWidgetItem):
+    """QTreeWidgetItem with complex data in a Python attribute."""
+
+    def __init__(self, text, data=None):
+        super().__init__(text)
+        self.item_data = data or {}
+
 
 # ===== JavaScript Syntax Highlighter =====
 
@@ -278,8 +287,8 @@ class RibbonTreePanel(QWidget):
         header_widget = QWidget()
         header_widget.setStyleSheet("background-color: #E0E0E0;")
         header_layout = QVBoxLayout()
-        header_layout.setContentsMargins(5, 3, 5, 3)
-        header_layout.setSpacing(3)
+        header_layout.setContentsMargins(5, 2, 5, 2)
+        header_layout.setSpacing(2)
 
         # Tabs row
         self.tab_container = QWidget()
@@ -292,6 +301,36 @@ class RibbonTreePanel(QWidget):
 
         header_widget.setLayout(header_layout)
         layout.addWidget(header_widget)
+
+        # Reorder buttons — compact bar between header and tree
+        reorder_bar = QWidget()
+        reorder_bar.setFixedHeight(26)
+        reorder_bar.setStyleSheet("background-color: #f5f5f5; border-bottom: 1px solid #ddd;")
+        reorder_layout = QHBoxLayout()
+        reorder_layout.setContentsMargins(8, 0, 8, 0)
+        reorder_layout.setSpacing(4)
+
+        lbl = QLabel("排序:")
+        lbl.setStyleSheet("font-size: 10px; color: #888; border: none;")
+        reorder_layout.addWidget(lbl)
+
+        self.btn_up = QPushButton("↑")
+        self.btn_up.setFixedSize(26, 20)
+        self.btn_up.setToolTip("上移")
+        self.btn_up.setStyleSheet("QPushButton { font-size: 12px; background: #e8e8e8; border: 1px solid #ccc; border-radius: 3px; } QPushButton:hover { background: #d0d0d0; }")
+        self.btn_up.clicked.connect(self._move_up)
+        reorder_layout.addWidget(self.btn_up)
+
+        self.btn_down = QPushButton("↓")
+        self.btn_down.setFixedSize(26, 20)
+        self.btn_down.setToolTip("下移")
+        self.btn_down.setStyleSheet("QPushButton { font-size: 12px; background: #e8e8e8; border: 1px solid #ccc; border-radius: 3px; } QPushButton:hover { background: #d0d0d0; }")
+        self.btn_down.clicked.connect(self._move_down)
+        reorder_layout.addWidget(self.btn_down)
+
+        reorder_layout.addStretch()
+        reorder_bar.setLayout(reorder_layout)
+        layout.addWidget(reorder_bar)
 
         # Tree widget for groups and buttons
         self.tree = QTreeWidget()
@@ -452,15 +491,13 @@ class RibbonTreePanel(QWidget):
 
         # No groups - show hint (与Tab设计一致)
         if not groups:
-            hint_item = QTreeWidgetItem(["暂无分组，右键Tab新增分组"])
-            hint_item.setData(0, Qt.ItemDataRole.UserRole, {"type": "hint"})
+            hint_item = _RibbonTreeItem(["暂无分组，右键Tab新增分组"], {"type": "hint"})
             hint_item.setFlags(hint_item.flags() & ~Qt.ItemFlag.ItemIsSelectable)
             self.tree.addTopLevelItem(hint_item)
             return
 
         for group in groups:
-            group_item = QTreeWidgetItem(["📁 " + group["name"]])
-            group_item.setData(0, Qt.ItemDataRole.UserRole, {
+            group_item = _RibbonTreeItem(["📁 " + group["name"]], {
                 "type": "group",
                 "id": group["id"],
                 "tab_id": self.current_tab_id,
@@ -479,8 +516,7 @@ class RibbonTreePanel(QWidget):
                 else:
                     display_text = f"🔘 {button['label']} [未绑定]"
 
-                btn_item = QTreeWidgetItem([display_text])
-                btn_item.setData(0, Qt.ItemDataRole.UserRole, {
+                btn_item = _RibbonTreeItem([display_text], {
                     "type": "button",
                     "id": button["id"],
                     "group_id": group["id"],
@@ -506,15 +542,142 @@ class RibbonTreePanel(QWidget):
         item = self.tree.currentItem()
         if not item:
             return None
-
-        data = item.data(0, Qt.ItemDataRole.UserRole)
+        data = item.item_data if hasattr(item, "item_data") else {}
         if data and data.get("type") == "button":
             return data.get("script_id")
         return None
 
+    def _persist_tree_order(self):
+        """Persist current tree order to DB after drag-and-drop."""
+        if not self.wps_service or not self.current_tab_id:
+            return
+        group_order = []
+        for i in range(self.tree.topLevelItemCount()):
+            group_item = self.tree.topLevelItem(i)
+            group_data = group_item.item_data if hasattr(group_item, "item_data") else {}
+            if group_data and group_data.get("type") == "group":
+                gid = group_data["id"]
+                group_order.append(gid)
+                button_order = []
+                for j in range(group_item.childCount()):
+                    btn_item = group_item.child(j)
+                    btn_data = btn_item.item_data if hasattr(btn_item, "item_data") else {}
+                    if btn_data and btn_data.get("type") == "button":
+                        bid = btn_data["id"]
+                        button_order.append(bid)
+                        old_group_id = btn_data.get("group_id")
+                        if old_group_id and old_group_id != gid:
+                            self.wps_service.move_button_to_group(bid, gid)
+                            btn_data["group_id"] = gid
+                if button_order:
+                    self.wps_service.update_button_positions(button_order)
+        if group_order:
+            self.wps_service.update_group_positions(self.current_tab_id, group_order)
+
+    # ── Move up / down ──
+
+    def _move_up(self):
+        item = self.tree.currentItem()
+        if not item:
+            return
+        data = item.item_data if hasattr(item, "item_data") else {}
+        item_type = data.get("type")
+
+        if item_type == "group":
+            self._move_group(item, -1)
+        elif item_type == "button":
+            self._move_button(item, -1)
+
+        self._after_move()
+
+    def _move_down(self):
+        item = self.tree.currentItem()
+        if not item:
+            return
+        data = item.item_data if hasattr(item, "item_data") else {}
+        item_type = data.get("type")
+
+        if item_type == "group":
+            self._move_group(item, 1)
+        elif item_type == "button":
+            self._move_button(item, 1)
+
+        self._after_move()
+
+    def _move_group(self, item, direction):
+        """Move group up (-1) or down (+1) among top-level items."""
+        parent = item.parent()
+        if parent:
+            idx = parent.indexOfChild(item)
+            parent.takeChild(idx)
+            new_idx = idx + direction
+            if new_idx < 0:
+                new_idx = parent.childCount()
+            elif new_idx > parent.childCount():
+                new_idx = 0
+            parent.insertChild(new_idx, item)
+        else:
+            idx = self.tree.indexOfTopLevelItem(item)
+            if idx < 0:
+                return
+            self.tree.takeTopLevelItem(idx)
+            new_idx = idx + direction
+            count = self.tree.topLevelItemCount()
+            if new_idx < 0:
+                new_idx = count
+            elif new_idx > count:
+                new_idx = 0
+            self.tree.insertTopLevelItem(new_idx, item)
+        self.tree.setCurrentItem(item)
+
+    def _move_button(self, item, direction):
+        """Move button up (-1) or down (+1). Cross group boundaries."""
+        parent = item.parent()
+        if not parent:
+            return
+        idx = parent.indexOfChild(item)
+        new_idx = idx + direction
+        if 0 <= new_idx < parent.childCount():
+            # Move within same group
+            parent.takeChild(idx)
+            parent.insertChild(new_idx, item)
+        else:
+            # Cross group boundary
+            grandparent = parent.parent()
+            if grandparent:
+                gi = grandparent.indexOfChild(parent)
+            else:
+                gi = self.tree.indexOfTopLevelItem(parent)
+            target_gi = gi + direction
+            # Find target group
+            if grandparent:
+                if 0 <= target_gi < grandparent.childCount():
+                    target_group = grandparent.child(target_gi)
+                else:
+                    return
+            else:
+                if 0 <= target_gi < self.tree.topLevelItemCount():
+                    target_group = self.tree.topLevelItem(target_gi)
+                else:
+                    return
+            tdata = target_group.item_data if hasattr(target_group, "item_data") else {}
+            if tdata.get("type") != "group":
+                return
+            parent.takeChild(idx)
+            if direction == -1:
+                target_group.addChild(item)
+            else:
+                target_group.insertChild(0, item)
+        self.tree.setCurrentItem(item)
+
+    def _after_move(self):
+        self._persist_tree_order()
+        if self.main_module:
+            self.main_module.refresh_preview()
+
     def _on_item_clicked(self, item, column):
         """Handle tree item click - load bound script in editor."""
-        data = item.data(0, Qt.ItemDataRole.UserRole)
+        data = item.item_data if hasattr(item, "item_data") else {}
         if not data:
             return
 
@@ -524,9 +687,6 @@ class RibbonTreePanel(QWidget):
                 script = self.wps_service.get_script(script_id)
                 if script:
                     self.main_module.load_script_in_editor(script)
-            else:
-                # Button not bound - show message
-                QMessageBox.information(self, "提示", "此按钮尚未绑定脚本，请右键选择\"绑定脚本\"")
 
     def _on_context_menu(self, position):
         """Show context menu for tree items."""
@@ -544,7 +704,7 @@ class RibbonTreePanel(QWidget):
             menu.exec(self.tree.viewport().mapToGlobal(position))
             return
 
-        data = item.data(0, Qt.ItemDataRole.UserRole)
+        data = item.item_data if hasattr(item, "item_data") else {}
         if not data or data.get("type") == "hint":
             # 点击提示项或无数据项，也显示空白区域菜单
             menu = QMenu()
