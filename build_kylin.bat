@@ -3,102 +3,70 @@ chcp 65001 >nul
 cd /d %~dp0
 
 echo ============================================================
-echo    ScriptNexus Kylin Linux Build Script (via Docker)
+echo    ScriptNexus Kylin Linux Build — Source Package
 echo ============================================================
 echo.
-echo Target: Kylin Linux (x86_64)
-echo Build Host: Windows
+echo This script packages the source for transfer to a Kylin machine.
+echo Run build_kylin.sh on the Kylin machine to complete the build.
 echo.
 
-REM Check Docker
-docker --version >nul 2>&1
-if errorlevel 1 (
-    echo ERROR: Docker not found. Please install Docker Desktop first.
-    echo   Download: https://www.docker.com/products/docker-desktop
-    pause
-    exit /b 1
-)
-echo Docker: OK
+set PACKAGE_NAME=ScriptNexus-src.zip
+set PACKAGE_DIR=ScriptNexus-src
+set DEST=%cd%\dist
+
+REM Clean and prepare
+echo [1/4] Cleaning...
+if exist "%DEST%\%PACKAGE_NAME%" del /q "%DEST%\%PACKAGE_NAME%"
+if exist "%DEST%\%PACKAGE_DIR%" rmdir /s /q "%DEST%\%PACKAGE_DIR%"
+if not exist "%DEST%" mkdir "%DIST%" 2>nul
+
+echo [2/4] Copying source files...
+robocopy "." "%DEST%\%PACKAGE_DIR%" ^
+    app.py ^
+    requirements.txt ^
+    build_kylin.sh ^
+    scriptnexus-linux.spec ^
+    /NFL /NDL /NJH /NJS >nul 2>&1
+
+robocopy "core" "%DEST%\%PACKAGE_DIR%\core" /E /XD __pycache__ /XF *.pyc /NFL /NDL /NJH /NJS >nul 2>&1
+robocopy "models" "%DEST%\%PACKAGE_DIR%\models" /E /XD __pycache__ /XF *.pyc /NFL /NDL /NJH /NJS >nul 2>&1
+robocopy "services" "%DEST%\%PACKAGE_DIR%\services" /E /XD __pycache__ /XF *.pyc /NFL /NDL /NJH /NJS >nul 2>&1
+robocopy "ui" "%DEST%\%PACKAGE_DIR%\ui" /E /XD __pycache__ /XF *.pyc /NFL /NDL /NJH /NJS >nul 2>&1
+robocopy "hooks" "%DEST%\%PACKAGE_DIR%\hooks" /E /XD __pycache__ /XF *.pyc /NFL /NDL /NJH /NJS >nul 2>&1
+robocopy "data" "%DEST%\%PACKAGE_DIR%\data" config.example.json /NFL /NDL /NJH /NJS >nul 2>&1
+robocopy "templates" "%DEST%\%PACKAGE_DIR%\templates" /E /NFL /NDL /NJH /NJS >nul 2>&1
+robocopy "pics" "%DEST%\%PACKAGE_DIR%\pics" icon.png icon.svg /NFL /NDL /NJH /NJS >nul 2>&1
+robocopy "scripts" "%DEST%\%PACKAGE_DIR%\scripts" /E /NFL /NDL /NJH /NJS >nul 2>&1
+robocopy "tools" "%DEST%\%PACKAGE_DIR%\tools" generate_icons.py /NFL /NDL /NJH /NJS >nul 2>&1
+
+REM Create empty required dirs
+mkdir "%DEST%\%PACKAGE_DIR%\data" 2>nul
+mkdir "%DEST%\%PACKAGE_DIR%\scripts" 2>nul
+
+REM Copy config example as default
+copy /y "data\config.example.json" "%DEST%\%PACKAGE_DIR%\data\config.json" >nul 2>&1
+
+echo [3/4] Creating zip package...
+powershell -Command "Compress-Archive -Path '%DEST%\%PACKAGE_DIR%' -DestinationPath '%DEST%\%PACKAGE_NAME%' -Force"
+
+echo [4/4] Cleaning up temp dir...
+rmdir /s /q "%DEST%\%PACKAGE_DIR%"
+
 echo.
-
-REM Select architecture
-set ARCH=x86_64
-if "%1"=="arm64" set ARCH=arm64
-if "%1"=="aarch64" set ARCH=arm64
-echo Target architecture: %ARCH%
-echo.
-
-REM Update spec file for architecture
-echo Updating spec file for %ARCH%...
-powershell -Command "(Get-Content scriptnexus-linux.spec) -replace 'target_arch=''[^'']*''', 'target_arch=''%ARCH%''' | Set-Content scriptnexus-linux.spec"
-echo.
-
-REM Clean previous build
-echo Cleaning previous build...
-if exist build rmdir /s /q build
-if exist dist rmdir /s /q dist
-echo.
-
-REM Generate icons if needed
-if not exist pics\icon.png (
-    echo Generating icons...
-    python tools\generate_icons.py
-    echo.
-)
-
 echo ============================================================
-echo    Building in Docker container...
+echo    Package created successfully!
 echo ============================================================
 echo.
-
-docker run --rm ^
-    -v "%cd%:/app" ^
-    -w /app ^
-    ubuntu:22.04 ^
-    bash -c "
-        set -e;
-        echo 'Updating apt...';
-        apt-get update -qq;
-        echo 'Installing Python...';
-        apt-get install -y -qq python3 python3-pip python3-venv > /dev/null 2>&1;
-        echo 'Installing PyInstaller...';
-        pip3 install --quiet pyinstaller;
-        echo 'Installing project dependencies...';
-        pip3 install --quiet PyQt6 python-docx openpyxl;
-        echo 'Building...';
-        pyinstaller --clean --noconfirm scriptnexus-linux.spec;
-        echo 'Done.';
-    "
-
-if exist dist\ScriptNexus (
-    echo.
-    echo ============================================================
-    echo    Build successful!
-    echo ============================================================
-    echo.
-    echo Output: dist\ScriptNexus\
-
-    REM Create tar.gz for distribution
-    echo Creating distribution archive...
-    powershell -Command "tar -czf dist\ScriptNexus-Kylin-x86_64.tar.gz -C dist ScriptNexus"
-    echo   dist\ScriptNexus-Kylin-x86_64.tar.gz
-    echo.
-    echo Deployment steps on Kylin:
-    echo   1. Copy ScriptNexus-Kylin-x86_64.tar.gz to Kylin machine
-    echo   2. tar -xzf ScriptNexus-Kylin-x86_64.tar.gz -C ~/
-    echo   3. sudo apt install libxcb-cursor0
-    echo   4. chmod +x ~/ScriptNexus/ScriptNexus
-    echo   5. ~/ScriptNexus/ScriptNexus
-    echo.
-
-) else (
-    echo.
-    echo ============================================================
-    echo    Build failed!
-    echo ============================================================
-    echo.
-    echo Check the error messages above.
-)
-
+echo Output: dist\%PACKAGE_NAME%
 echo.
+echo Next steps:
+echo   1. Copy dist\%PACKAGE_NAME% to the Kylin machine
+echo   2. On Kylin: unzip %PACKAGE_NAME% ^&^& cd %PACKAGE_DIR%
+echo   3. On Kylin: chmod +x build_kylin.sh ^&^& ./build_kylin.sh
+echo.
+echo After the build completes on Kylin, the executable will be in:
+echo   dist\ScriptNexus\ScriptNexus
+echo.
+
 pause
+exit /b 0

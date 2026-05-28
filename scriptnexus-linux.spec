@@ -9,11 +9,21 @@ block_cipher = None
 PROJECT_ROOT = os.path.dirname(os.path.abspath(SPEC))
 
 # Data files for Linux
-datas = [
-    (os.path.join(PROJECT_ROOT, 'templates'), 'templates'),
-    (os.path.join(PROJECT_ROOT, 'data', 'config.json'), 'data'),
-    (os.path.join(PROJECT_ROOT, 'pics', 'icon.png'), 'pics'),
-]
+datas = []
+_config_json = os.path.join(PROJECT_ROOT, 'data', 'config.json')
+_config_example = os.path.join(PROJECT_ROOT, 'data', 'config.example.json')
+if os.path.exists(_config_json):
+    datas.append((_config_json, 'data'))
+elif os.path.exists(_config_example):
+    datas.append((_config_example, 'data'))
+
+_templates = os.path.join(PROJECT_ROOT, 'templates')
+if os.path.exists(_templates):
+    datas.append((_templates, 'templates'))
+
+_icon = os.path.join(PROJECT_ROOT, 'pics', 'icon.png')
+if os.path.exists(_icon):
+    datas.append((_icon, 'pics'))
 
 hiddenimports = [
     'PyQt6.QtCore',
