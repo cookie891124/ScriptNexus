@@ -303,13 +303,14 @@ class AboutTab(QWidget):
         """)
         about_text.setHtml(
             "<p style='line-height:1.7;'>"
-            "诞生于<b>企业（）</b>内网环境，以 <b>vibe coding</b> 从零构建的 AI 辅助办公自动化工具。<br><br>"
-            "作者是一名企业员工，<b>没有技术背景</b>。在 AI 浪潮下开始学习 vibe coding，"
-            "ScriptNexus 是完成的<b>第一个复杂项目</b>——从内网办公场景的真实需求出发，"
+            "以 <b>vibe coding</b> 从零构建的 AI 辅助办公自动化工具，"
+            "面向企业内网办公场景。<br><br>"
+            "作者<b>没有技术背景</b>，在 AI 浪潮下开始学习 vibe coding，"
+            "ScriptNexus 是完成的<b>第一个复杂项目</b>——从办公场景的真实需求出发，"
             "逐步迭代为覆盖 Python 脚本、WPS 宏和 Chrome JS 书签的一站式管理平台。<br><br>"
-            "目标是<b>逐步在内网搭建一个办公自动化的生态底座</b>，"
-            "让更多同事借助 AI 降低重复性劳动的门槛。<br><br>"
-            "当前支持 Windows，银行切换麒麟系统后将及时适配。"
+            "目标是<b>逐步搭建一个办公自动化的生态底座</b>，"
+            "让更多人借助 AI 降低重复性劳动的门槛。<br><br>"
+            "当前支持 Windows，后续将适配 Linux（麒麟）系统。"
             "</p>"
         )
         about_text.setFixedHeight(160)

@@ -1971,8 +1971,8 @@ class WheelDownloadDialog(QDialog):
 
         # Python version info
         version_label = QLabel(
-            f"💻 当前 Python 版本：{self.current_python_version}\n"
-            f"⚠ 请确保外网 Python 版本与内网版本对齐（使用相同版本下载）"
+            f"当前 Python 版本：{self.current_python_version}\n"
+            f"请确保下载环境的 Python 版本与使用环境一致"
         )
         version_label.setStyleSheet("QLabel { color: #d83b01; font-weight: bold; }")
         version_label.setWordWrap(True)

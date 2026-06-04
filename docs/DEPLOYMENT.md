@@ -31,7 +31,7 @@
 **操作步骤**：
 
 1. **在内网手动创建种子文件**：
-   - 打开 WPS（WPS Office）
+   - 打开 WPS Office
    - 创建 Excel 文件，按 Alt+F11 添加任意 VBA 宏
    - 保存为 `.xlam` 文件（如 `seed_excel.xlam`）
    - 创建 Word 文件，按 Alt+F11 添加任意 VBA 宏
