@@ -35,6 +35,21 @@ data/config.json
 # Database files (local dev)
 data/*.db
 
+# Tests (local only)
+tests/
+
+# Internal docs
+docs/superpowers/
+docs/ERROR_LOG.md
+
+# Dev tools
+deploy.bat
+increment.bat
+tools/package_*.py
+
+# Icons (generated — keep only source icon.ico icon.png icon.svg)
+pics/icon_*.png
+
 # Claude
 .claude/
 
