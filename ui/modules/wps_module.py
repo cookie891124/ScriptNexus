@@ -1183,6 +1183,7 @@ class WpsModule(QWidget):
         self.templates_dir = None
         self.word_startup = None
         self.excel_startup = None
+        self.deployment_service = None
 
         self._setup_ui()
         self._refresh_all()
@@ -1264,6 +1265,27 @@ class WpsModule(QWidget):
         """)
         self.excel_btn.clicked.connect(self._on_excel_clicked)
         app_layout.addWidget(self.excel_btn)
+
+        app_layout.addSpacing(12)
+
+        # Deploy button
+        self.deploy_btn = QPushButton("一键部署")
+        self.deploy_btn.setFixedSize(90, 32)
+        self.deploy_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #d83b01;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                font-size: 12px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #c73501;
+            }
+        """)
+        self.deploy_btn.clicked.connect(self._on_deploy)
+        app_layout.addWidget(self.deploy_btn)
 
         app_layout.addStretch()
         layout.addLayout(app_layout)
@@ -1577,6 +1599,29 @@ class WpsModule(QWidget):
         self.word_btn.setChecked(False)
         self.excel_btn.setChecked(True)
         self._refresh_all()
+
+    def _on_deploy(self):
+        """Handle deploy button click — deploy templates for current app."""
+        if not self.deployment_service:
+            QMessageBox.warning(self, "提示", "部署服务未初始化，请先配置路径。")
+            return
+        app = "word" if self.word_btn.isChecked() else "excel"
+        reply = QMessageBox.question(
+            self, "确认部署",
+            f"即将部署 {app.upper()} 的功能区配置和模板，确定继续？",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            result = self.deployment_service.deploy_all()
+            if result.get("success"):
+                QMessageBox.information(self, "部署成功", result.get("message", "部署完成"))
+            else:
+                errors = result.get("errors", ["未知错误"])
+                QMessageBox.warning(self, "部署失败", "\n".join(errors))
+        except Exception as e:
+            QMessageBox.critical(self, "部署错误", str(e))
 
     def _on_app_changed(self, index):
         """Handle app change (deprecated)."""
