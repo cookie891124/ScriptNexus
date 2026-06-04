@@ -1605,6 +1605,11 @@ class WpsModule(QWidget):
         if not self.deployment_service:
             QMessageBox.warning(self, "提示", "部署服务未初始化，请先配置路径。")
             return
+        # Refresh deployment service template dirs from current module state
+        if self.word_startup:
+            self.deployment_service.word_template_dir = self.word_startup
+        if self.excel_startup:
+            self.deployment_service.excel_template_dir = self.excel_startup
         app = "word" if self.word_btn.isChecked() else "excel"
         reply = QMessageBox.question(
             self, "确认部署",

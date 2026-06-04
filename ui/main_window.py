@@ -106,9 +106,12 @@ class MainWindow(QMainWindow):
         if self.wps_module:
             self.wps_module.set_paths(templates_dir, word_startup, excel_startup)
 
-        # Update deployment service wps_service paths
-        if self.deployment_service and self.deployment_service.wps_service:
-            self.deployment_service.wps_service.set_paths(templates_dir, word_startup, excel_startup)
+        # Update deployment service paths and template dirs
+        if self.deployment_service:
+            if self.deployment_service.wps_service:
+                self.deployment_service.wps_service.set_paths(templates_dir, word_startup, excel_startup)
+            self.deployment_service.word_template_dir = word_startup if word_startup and word_startup.strip() else ""
+            self.deployment_service.excel_template_dir = excel_startup if excel_startup and excel_startup.strip() else ""
 
     def _load_paths_from_config(self):
         """Load paths from config service if available."""
@@ -461,9 +464,12 @@ class MainWindow(QMainWindow):
         if scripts_dir and scripts_dir.strip():
             self.set_paths(scripts_dir, whl_pool_dir, templates_dir)
 
-        # Update deployment service wps_service paths
-        if self.deployment_service and self.deployment_service.wps_service:
-            self.deployment_service.wps_service.set_paths(templates_dir, word_startup, excel_startup)
+        # Update deployment service paths and template dirs
+        if self.deployment_service:
+            if self.deployment_service.wps_service:
+                self.deployment_service.wps_service.set_paths(templates_dir, word_startup, excel_startup)
+            self.deployment_service.word_template_dir = word_startup if word_startup and word_startup.strip() else ""
+            self.deployment_service.excel_template_dir = excel_startup if excel_startup and excel_startup.strip() else ""
 
         # Update JS module chrome path
         if self.js_module and chrome_bookmarks and chrome_bookmarks.strip():
