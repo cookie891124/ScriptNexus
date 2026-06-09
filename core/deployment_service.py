@@ -599,36 +599,8 @@ class DeploymentService:
         js_code = self._generate_js_code(scripts)
         jde_content = self._generate_jdedata_bin(js_code)
 
-        # Use recorded xlam template as base (addin.macroEnabled format)
-        base_template = os.path.join(os.path.dirname(__file__), '..', 'tests', '工作簿1.xlam')
-        if not os.path.exists(base_template):
-            # Fallback to manual creation if base template not found
-            self._generate_js_macro_xltm_manual(scripts, output_path)
-            return
-
-        # Create temp directory
-        temp_dir = tempfile.mkdtemp()
-
-        try:
-            # Extract base template
-            with zipfile.ZipFile(base_template, 'r') as z:
-                z.extractall(temp_dir)
-
-            # Replace JDEData.bin
-            jde_path = os.path.join(temp_dir, 'xl', 'JDEData.bin')
-            with open(jde_path, 'w', encoding='utf-8') as f:
-                f.write(jde_content)
-
-            # Repack as new xlam
-            with zipfile.ZipFile(output_path, 'w', zipfile.ZIP_DEFLATED) as z:
-                for root, dirs, files in os.walk(temp_dir):
-                    for file in files:
-                        file_path = os.path.join(root, file)
-                        arc_name = os.path.relpath(file_path, temp_dir)
-                        z.write(file_path, arc_name)
-        finally:
-            # Clean up temp directory
-            shutil.rmtree(temp_dir, ignore_errors=True)
+        # Always use manual creation (no dependency on test fixtures)
+        self._generate_js_macro_xltm_manual(scripts, output_path)
 
     def _generate_js_macro_xltm_manual(self, scripts: List[Dict], output_path: str):
         """Generate a .xltm file manually (fallback when base template not found)."""

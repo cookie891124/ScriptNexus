@@ -782,6 +782,7 @@ class RibbonTreePanel(QWidget):
             # Auto-create a default group
             self.wps_service.add_group("默认分组", tab_id, self.current_app)
             self.refresh_all()
+            self.main_module.refresh_preview()
 
     def _on_rename_tab(self, tab_id, tab_name):
         """Rename a tab."""
@@ -791,6 +792,7 @@ class RibbonTreePanel(QWidget):
             self.wps_service.update_tab(tab_id, new_name)
             self.current_tab_name = new_name
             self.refresh_all()
+            self.main_module.refresh_preview()
 
     def _on_delete_tab(self, tab_id, tab_name):
         """Delete a tab and all its groups/buttons."""
@@ -808,6 +810,7 @@ class RibbonTreePanel(QWidget):
                 self.current_tab_id = None
                 self.current_tab_name = None
             self.refresh_all()
+            self.main_module.refresh_preview()
 
     def _on_add_group(self, tab_id):
         """Add new group to current tab."""
@@ -816,6 +819,7 @@ class RibbonTreePanel(QWidget):
             group_name = text.strip()
             self.wps_service.add_group(group_name, tab_id, self.current_app)
             self.refresh_all()
+            self.main_module.refresh_preview()
 
     def _on_rename_group(self, group_id, group_name):
         """Rename a group."""
@@ -823,6 +827,7 @@ class RibbonTreePanel(QWidget):
         if ok and text.strip():
             self.wps_service.update_group(group_id, text.strip())
             self.refresh_all()
+            self.main_module.refresh_preview()
 
     def _on_delete_group(self, group_id, group_name):
         """Delete a group and all its buttons."""
@@ -832,6 +837,7 @@ class RibbonTreePanel(QWidget):
         if reply == QMessageBox.StandardButton.Yes:
             self.wps_service.delete_group(group_id)
             self.refresh_all()
+            self.main_module.refresh_preview()
 
     def _on_add_button(self, group_id):
         """Add new button to group - creates ribbon_buttons record, NOT a script."""
@@ -840,6 +846,7 @@ class RibbonTreePanel(QWidget):
             button_label = text.strip()
             self.wps_service.add_button(button_label, group_id, self.current_app)
             self.refresh_all()
+            self.main_module.refresh_preview()
 
     def _on_rename_button(self, button_id, button_label):
         """Rename a button."""
@@ -847,6 +854,7 @@ class RibbonTreePanel(QWidget):
         if ok and text.strip():
             self.wps_service.update_button(button_id, text.strip())
             self.refresh_all()
+            self.main_module.refresh_preview()
 
     def _on_delete_button(self, button_id, button_label):
         """Delete a button."""
@@ -856,6 +864,7 @@ class RibbonTreePanel(QWidget):
         if reply == QMessageBox.StandardButton.Yes:
             self.wps_service.delete_button(button_id)
             self.refresh_all()
+            self.main_module.refresh_preview()
 
     def _on_bind_script(self, button_id):
         """Bind an existing script to this button."""
