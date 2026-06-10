@@ -5,10 +5,281 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QListWidget,
     QListWidgetItem, QTextEdit, QLabel, QDialog, QLineEdit,
     QMessageBox, QSplitter, QFrame, QComboBox, QFormLayout,
-    QSizePolicy
+    QSizePolicy, QGraphicsView, QGraphicsScene, QGraphicsRectItem,
+    QGraphicsSimpleTextItem, QGraphicsPathItem,
 )
-from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QFont
+from PyQt6.QtCore import Qt, pyqtSignal, QTimer
+from PyQt6.QtGui import (
+    QFont, QPen, QBrush, QColor, QPainter, QFontMetrics, QPainterPath,
+)
+
+
+# ===== Bookmark Preview =====
+
+class BookmarkPreviewView(QGraphicsView):
+    """Visual bookmark tree preview — vertical layout matching browser bookmarks."""
+
+    # Card palette
+    CARD_BG = QColor("#F8F9FA")
+    CARD_BORDER = QColor("#E0E0E0")
+    # Rows
+    ROW_HOVER_BG = QColor("#E8F0FE")
+    ROOT_TEXT = QColor("#1A1A1A")
+    FOLDER_TEXT = QColor("#444746")
+    BOOKMARK_TEXT = QColor("#3C4043")
+    BOOKMARK_DOT = QColor("#1A73E8")
+    HIGHLIGHT_BG = QColor("#D3E3FD")
+    HIGHLIGHT_BORDER = QColor("#1A73E8")
+    HIGHLIGHT_TEXT = QColor("#174EA6")
+    # Layout constants
+    CARD_MARGIN = 6          # card inset from viewport edge
+    CARD_PAD_X = 10          # horizontal padding inside card
+    CARD_PAD_TOP = 8         # top padding inside card
+    CARD_PAD_BOTTOM = 8      # bottom padding inside card
+    CARD_RADIUS = 6          # rounded corner radius
+    ROW_HEIGHT = 26          # height per row
+    INDENT_ROOT = 0          # root label indent
+    INDENT_ITEM = 16         # direct bookmark indent
+    INDENT_SUB = 30          # subfolder item indent
+    DOT_SIZE = 6             # bookmark dot diameter
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.scene = QGraphicsScene()
+        self.setScene(self.scene)
+        self.setFrameShape(QGraphicsView.Shape.NoFrame)
+        self.setBackgroundBrush(QBrush(QColor("#FFFFFF")))
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.setRenderHint(QPainter.RenderHint.Antialiasing)
+        self._highlight_id = None
+        self._hl_rects: dict = {}  # sid → QGraphicsRectItem for visibility toggle
+
+    def clear_preview(self):
+        self.scene.clear()
+        self._highlight_id = None
+        self._hl_rects.clear()
+
+    def set_highlight(self, highlight_id):
+        """Toggle highlight WITHOUT clearing/rebuilding the scene.
+
+        This avoids triggering Qt layout recalculation that interferes
+        with the QSplitter handle. Call this on selection changes.
+        """
+        if highlight_id == self._highlight_id:
+            return
+        if self._highlight_id is not None and self._highlight_id in self._hl_rects:
+            self._hl_rects[self._highlight_id].setVisible(False)
+        if highlight_id is not None and highlight_id in self._hl_rects:
+            self._hl_rects[highlight_id].setVisible(True)
+        self._highlight_id = highlight_id
+
+    def _rounded_rect_path(self, x: float, y: float, w: float, h: float, r: float) -> QPainterPath:
+        """Create a QPainterPath for a rounded rectangle."""
+        path = QPainterPath()
+        path.moveTo(x + r, y)
+        path.lineTo(x + w - r, y)
+        path.quadTo(x + w, y, x + w, y + r)
+        path.lineTo(x + w, y + h - r)
+        path.quadTo(x + w, y + h, x + w - r, y + h)
+        path.lineTo(x + r, y + h)
+        path.quadTo(x, y + h, x, y + h - r)
+        path.lineTo(x, y + r)
+        path.quadTo(x, y, x + r, y)
+        path.closeSubpath()
+        return path
+
+    def show_preview(self, scripts, highlight_id=None):
+        """Draw vertical tree: root folder → bookmarks, subfolders indented.
+
+        Chrome bookmark bar is vertical, so this renders as a tree list:
+          JS Scripts
+            script A
+            script B
+            subfolder/
+              script C
+        """
+        self.scene.clear()
+        self._highlight_id = highlight_id
+        self._hl_rects.clear()
+
+        vp_w = max(self.width(), 200)
+
+        if not scripts:
+            f = QFont("Microsoft YaHei", 10)
+            t = QGraphicsSimpleTextItem("No scripts")
+            t.setFont(f)
+            t.setBrush(QColor("#9AA0A6"))
+            fm = QFontMetrics(f)
+            t.setPos((vp_w - fm.horizontalAdvance("No scripts")) / 2, 20)
+            self.scene.addItem(t)
+            self.scene.setSceneRect(0, 0, vp_w, 60)
+            return
+
+        # Group scripts into direct items and subfolders
+        direct_items: list[dict] = []
+        subfolders: dict[str, list[dict]] = {}
+        for s in scripts:
+            key = s.get("parent_folder", "") or ""
+            if key:
+                subfolders.setdefault(key, []).append(s)
+            else:
+                direct_items.append(s)
+
+        # Fonts
+        font = QFont("Microsoft YaHei UI", 9)
+        fm = QFontMetrics(font)
+        bold_font = QFont("Microsoft YaHei UI", 9, QFont.Weight.Bold)
+        root_font = QFont("Microsoft YaHei UI", 10, QFont.Weight.Bold)
+
+        # Measure all texts to determine card width
+        max_text_w = QFontMetrics(root_font).horizontalAdvance("JS Scripts")
+        for item in direct_items:
+            tw = fm.horizontalAdvance(item.get("name", ""))
+            if tw > max_text_w:
+                max_text_w = tw
+        for sub_name, items in subfolders.items():
+            tw = QFontMetrics(bold_font).horizontalAdvance(sub_name + "/")
+            if tw > max_text_w:
+                max_text_w = tw
+            for item in items:
+                tw = fm.horizontalAdvance(item.get("name", ""))
+                if tw > max_text_w:
+                    max_text_w = tw
+
+        # Card width = widest text + deepest indent + dot + gap + padding
+        max_indent = self.INDENT_SUB if subfolders else self.INDENT_ITEM
+        card_inner_w = max_text_w + max_indent + self.DOT_SIZE + 14
+        card_w = min(card_inner_w + self.CARD_PAD_X * 2, vp_w - self.CARD_MARGIN * 2)
+        content_w = card_w - self.CARD_PAD_X * 2  # usable text width inside card
+
+        # Card position (centered or left-aligned with margin)
+        card_x = self.CARD_MARGIN
+        card_y = self.CARD_MARGIN
+
+        # Build all rows first (two-pass to get final height before drawing card)
+        rows: list[tuple[str, int, dict | None, bool]] = []  # (text, indent, item, is_folder)
+        rows.append(("JS Scripts", self.INDENT_ROOT, None, False))
+
+        for item in direct_items:
+            rows.append((item.get("name", ""), self.INDENT_ITEM, item, False))
+
+        for sub_name in sorted(subfolders.keys()):
+            rows.append((sub_name + "/", self.INDENT_ITEM, None, True))
+            for item in subfolders[sub_name]:
+                rows.append((item.get("name", ""), self.INDENT_SUB, item, False))
+
+        # Card height
+        card_h = self.CARD_PAD_TOP + len(rows) * self.ROW_HEIGHT + self.CARD_PAD_BOTTOM
+        total_h = card_y + card_h + self.CARD_MARGIN
+
+        # --- Draw card background (single rounded rect, no overlap) ---
+        card_path = self._rounded_rect_path(card_x, card_y, card_w, card_h, self.CARD_RADIUS)
+        card_bg = QGraphicsPathItem(card_path)
+        card_bg.setBrush(QBrush(self.CARD_BG))
+        card_bg.setPen(QPen(self.CARD_BORDER, 1))
+        card_bg.setZValue(-10)
+        self.scene.addItem(card_bg)
+
+        # --- Draw rows ---
+        y = card_y + self.CARD_PAD_TOP
+
+        for text, indent, item_data, is_folder in rows:
+            sid = item_data.get("id") if item_data else None
+            is_hl = highlight_id is not None and sid == highlight_id
+            is_root = (indent == self.INDENT_ROOT and item_data is None)
+
+            row_x = card_x + self.CARD_PAD_X + indent
+
+            if is_root:
+                self._draw_root_row(row_x, y, text, content_w - indent, root_font)
+            elif is_folder:
+                self._draw_folder_row(row_x, y, text, content_w - indent, bold_font, fm)
+            else:
+                self._draw_bookmark_row(
+                    row_x, y, text, is_hl, sid,
+                    font, fm, content_w - indent, card_x, card_w,
+                )
+            y += self.ROW_HEIGHT
+
+        self.scene.setSceneRect(0, 0, vp_w, total_h)
+
+    def _draw_root_row(self, x: float, y: float, text: str,
+                       avail_w: float, font: QFont) -> None:
+        """Draw the root folder header row."""
+        lbl = QGraphicsSimpleTextItem(text)
+        lbl.setPos(x, y + 4)
+        lbl.setFont(font)
+        lbl.setBrush(self.ROOT_TEXT)
+        self.scene.addItem(lbl)
+
+        # Separator line under root
+        fm = QFontMetrics(font)
+        line_y = y + self.ROW_HEIGHT - 2
+        line = QGraphicsRectItem(x, line_y, avail_w, 1)
+        line.setBrush(QBrush(QColor("#E0E0E0")))
+        line.setPen(QPen(Qt.PenStyle.NoPen))
+        line.setZValue(-1)
+        self.scene.addItem(line)
+
+    def _draw_folder_row(self, x: float, y: float, text: str,
+                         avail_w: float, font: QFont, fm: QFontMetrics) -> None:
+        """Draw a subfolder header row."""
+        truncated = self._truncate(text, fm, avail_w - 4)
+        lbl = QGraphicsSimpleTextItem(truncated)
+        lbl.setPos(x, y + 4)
+        lbl.setFont(font)
+        lbl.setBrush(self.FOLDER_TEXT)
+        self.scene.addItem(lbl)
+
+    def _draw_bookmark_row(self, x: float, y: float, text: str,
+                           highlighted: bool, sid,
+                           font: QFont, fm: QFontMetrics,
+                           avail_w: float,
+                           card_x: float, card_w: float) -> None:
+        """Draw a bookmark item row with dot indicator and optional highlight."""
+        # Highlight bar (spans full card width, inset)
+        hl_x = card_x + 4
+        hl_w = card_w - 8
+        hl = QGraphicsRectItem()
+        hl.setRect(hl_x, y + 1, hl_w, self.ROW_HEIGHT - 2)
+        hl.setBrush(QBrush(self.HIGHLIGHT_BG))
+        hl.setPen(QPen(Qt.PenStyle.NoPen))
+        hl.setZValue(-5)
+        hl.setVisible(highlighted)
+        self.scene.addItem(hl)
+        if sid is not None:
+            self._hl_rects[sid] = hl
+
+        # Rounded dot indicator (circle)
+        dot_r = self.DOT_SIZE / 2
+        dot_x = x + 2
+        dot_y = y + (self.ROW_HEIGHT - self.DOT_SIZE) / 2
+        dot_path = QPainterPath()
+        dot_path.addEllipse(dot_x + dot_r, dot_y + dot_r, dot_r, dot_r)
+        dot = QGraphicsPathItem(dot_path)
+        dot.setBrush(QBrush(self.HIGHLIGHT_BORDER if highlighted else self.BOOKMARK_DOT))
+        dot.setPen(QPen(Qt.PenStyle.NoPen))
+        self.scene.addItem(dot)
+
+        # Text label
+        text_x = x + self.DOT_SIZE + 6
+        text_avail = avail_w - self.DOT_SIZE - 8
+        truncated = self._truncate(text, fm, text_avail)
+
+        lbl = QGraphicsSimpleTextItem(truncated)
+        lbl.setPos(text_x, y + 4)
+        lbl.setFont(font)
+        lbl.setBrush(self.HIGHLIGHT_BORDER if highlighted else self.BOOKMARK_TEXT)
+        self.scene.addItem(lbl)
+
+    def _truncate(self, text: str, fm: QFontMetrics, max_w: float) -> str:
+        """Truncate text with ellipsis to fit within max_w pixels."""
+        if fm.horizontalAdvance(text) <= max_w:
+            return text
+        while len(text) > 1 and fm.horizontalAdvance(text + "...") > max_w:
+            text = text[:-1]
+        return text + "..."
 
 
 class ScriptDialog(QDialog):
@@ -169,13 +440,14 @@ class JsModule(QWidget):
 
         self._setup_ui()
         self._refresh_list()
+        self._refresh_preview()
 
     def _setup_ui(self):
         layout = QVBoxLayout()
         layout.setContentsMargins(10, 10, 10, 10)
         layout.setSpacing(8)
 
-        # ---- Title (same pattern as Python module) ----
+        # ---- Title ----
         title_layout = QHBoxLayout()
         title_layout.setContentsMargins(0, 0, 0, 0)
         title_layout.setSpacing(10)
@@ -195,9 +467,9 @@ class JsModule(QWidget):
         title_layout.addWidget(title_label)
         title_layout.addStretch()
 
-        layout.addLayout(title_layout, 0)  # stretch=0: don't expand
+        layout.addLayout(title_layout, 0)
 
-        # ---- Toolbar (same pattern as Python module) ----
+        # ---- Toolbar ----
         toolbar_layout = QHBoxLayout()
         toolbar_layout.setSpacing(8)
         toolbar_layout.setContentsMargins(0, 0, 0, 5)
@@ -235,7 +507,7 @@ class JsModule(QWidget):
         toolbar_layout.addWidget(self.deploy_btn)
 
         toolbar_layout.addStretch()
-        layout.addLayout(toolbar_layout, 0)  # stretch=0: don't expand
+        layout.addLayout(toolbar_layout, 0)
 
         # ---- Path row ----
         path_layout = QHBoxLayout()
@@ -244,16 +516,33 @@ class JsModule(QWidget):
         self.path_label.setStyleSheet("color: #aaa; font-size: 11px;")
         path_layout.addWidget(self.path_label)
         path_layout.addStretch()
-        layout.addLayout(path_layout, 0)  # stretch=0: don't expand
+        layout.addLayout(path_layout, 0)
 
-        # ---- Main content: splitter ----
-        splitter = QSplitter(Qt.Orientation.Horizontal)
-        splitter.setHandleWidth(1)
-        splitter.setChildrenCollapsible(False)
+        # ---- Main content: horizontal split (preview | right panel) ----
+        hsplit = QSplitter(Qt.Orientation.Horizontal)
+        hsplit.setChildrenCollapsible(False)
 
-        # === Left: script list ===
-        list_panel = QWidget()
-        list_panel.setMinimumWidth(180)
+        # === Left: Bookmark Preview ===
+        preview_panel = QFrame()
+        pl = QVBoxLayout()
+        pl.setContentsMargins(0, 0, 0, 0)
+        pl.setSpacing(3)
+
+        pl_hdr = QLabel("书签栏预览")
+        pl_hdr.setStyleSheet("font-weight: bold; padding: 3px; background: #e8e8e8;")
+        pl_hdr.setFixedHeight(24)
+        pl.addWidget(pl_hdr)
+
+        self.bookmark_preview = BookmarkPreviewView()
+        pl.addWidget(self.bookmark_preview)
+
+        preview_panel.setLayout(pl)
+
+        # === Right: vertical split (list top / details bottom) ===
+        vsplit = QSplitter(Qt.Orientation.Vertical)
+
+        # -- Script list panel --
+        list_panel = QFrame()
         ll = QVBoxLayout()
         ll.setContentsMargins(0, 0, 0, 0)
         ll.setSpacing(0)
@@ -270,13 +559,9 @@ class JsModule(QWidget):
 
         list_panel.setLayout(ll)
 
-        # === Right: vertical split (details top / preview bottom) ===
-        vsplit = QSplitter(Qt.Orientation.Vertical)
-        vsplit.setHandleWidth(1)
-        vsplit.setChildrenCollapsible(False)
-
         # -- Details panel --
-        detail_panel = QWidget()
+        detail_panel = QFrame()
+        detail_panel.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         dl = QVBoxLayout()
         dl.setContentsMargins(6, 4, 6, 4)
         dl.setSpacing(3)
@@ -308,36 +593,18 @@ class JsModule(QWidget):
         dl.addStretch()
         detail_panel.setLayout(dl)
 
-        # -- Preview panel --
-        preview_panel = QWidget()
-        pl = QVBoxLayout()
-        pl.setContentsMargins(6, 4, 6, 4)
-        pl.setSpacing(3)
-
-        pl_hdr = QLabel("书签 JSON 预览")
-        pl_hdr.setStyleSheet("font-weight: bold; padding: 3px; background: #e8e8e8;")
-        pl_hdr.setFixedHeight(24)
-        pl.addWidget(pl_hdr)
-
-        self.json_preview = QTextEdit()
-        self.json_preview.setFont(QFont("Consolas", 9))
-        self.json_preview.setReadOnly(True)
-        self.json_preview.setPlaceholderText('点击"部署到 Chrome"按钮查看生成的书签结构...')
-        pl.addWidget(self.json_preview)
-
-        preview_panel.setLayout(pl)
-
+        vsplit.addWidget(list_panel)
         vsplit.addWidget(detail_panel)
-        vsplit.addWidget(preview_panel)
-        vsplit.setStretchFactor(0, 2)
-        vsplit.setStretchFactor(1, 3)
+        vsplit.setStretchFactor(0, 3)
+        vsplit.setStretchFactor(1, 1)
 
-        splitter.addWidget(list_panel)
-        splitter.addWidget(vsplit)
-        splitter.setStretchFactor(0, 1)
-        splitter.setStretchFactor(1, 2)
+        hsplit.addWidget(preview_panel)
+        hsplit.addWidget(vsplit)
+        hsplit.setStretchFactor(0, 1)
+        hsplit.setStretchFactor(1, 3)
+        hsplit.setSizes([220, 500])
 
-        layout.addWidget(splitter, 1)  # stretch=1: take remaining space
+        layout.addWidget(hsplit, 1)
         self.setLayout(layout)
 
     def _btn_style(self, color):
@@ -359,11 +626,10 @@ class JsModule(QWidget):
             if desc:
                 label += f"  —  {desc}"
             folder = s.get("parent_folder", "")
-            # Insert folder header when folder changes
             if folder != last_folder:
                 folder_name = folder or "JS Scripts"
-                header = QListWidgetItem(f"▸ {folder_name}")
-                header.setFlags(Qt.ItemFlag.NoItemFlags)  # non-selectable
+                header = QListWidgetItem(f"> {folder_name}")
+                header.setFlags(Qt.ItemFlag.NoItemFlags)
                 header.setData(Qt.ItemDataRole.UserRole, None)
                 font = header.font()
                 font.setBold(True)
@@ -381,7 +647,7 @@ class JsModule(QWidget):
             self._clear_details()
             return
         sid = sel[0].data(Qt.ItemDataRole.UserRole)
-        if sid is None:  # folder header, skip
+        if sid is None:
             return
         if sid:
             script = self.js_service.get_script(sid)
@@ -402,19 +668,40 @@ class JsModule(QWidget):
         self.detail_folder.setText(s.get("parent_folder", "") or "JS Scripts")
         self.detail_pos.setText(str(s.get("position", 0)))
 
+    # ---- Preview ----
+
+    def _refresh_preview(self, highlight_id=None):
+        """Full data refresh — called on add/edit/delete. Rebuilds scene."""
+        scripts = self.js_service.get_all_scripts()
+        self.bookmark_preview.show_preview(scripts, highlight_id=highlight_id)
+
+    def _highlight_preview(self, highlight_id=None):
+        """Deferred full refresh — QTimer breaks the synchronous call chain
+        so the QSplitter finishes its layout before the scene rebuilds."""
+        scripts = self.js_service.get_all_scripts()
+        QTimer.singleShot(0, lambda: self.bookmark_preview.show_preview(scripts, highlight_id=highlight_id))
+
     # ---- CRUD ----
 
     def _on_add_script(self):
-        folders = self._collect_folders()
-        dlg = ScriptDialog(self, existing_folders=folders)
-        if dlg.exec() == QDialog.DialogCode.Accepted:
-            data = dlg.get_script_data()
-            self.js_service.add_script(name=data["name"], url=data["url"],
-                                       parent_folder=data["parent_folder"],
-                                       position=data["position"],
-                                       description=data["description"])
-            self._refresh_list()
-            self.script_added.emit()
+        try:
+            folders = self._collect_folders()
+            dlg = ScriptDialog(self, existing_folders=folders)
+            if dlg.exec() == QDialog.DialogCode.Accepted:
+                data = dlg.get_script_data()
+                try:
+                    self.js_service.add_script(name=data["name"], url=data["url"],
+                                               parent_folder=data["parent_folder"],
+                                               position=data["position"],
+                                               description=data["description"])
+                except ValueError as e:
+                    QMessageBox.warning(self, "保存失败", str(e))
+                    return
+                self._refresh_list()
+                self._refresh_preview()
+                self.script_added.emit()
+        except Exception as e:
+            QMessageBox.critical(self, "错误", f"保存脚本时发生错误:\n{type(e).__name__}: {e}")
 
     def _on_edit_script(self):
         sel = self.script_list.selectedItems()
@@ -438,6 +725,7 @@ class JsModule(QWidget):
                                           parent_folder=data["parent_folder"],
                                           position=data["position"])
             self._refresh_list()
+            self._refresh_preview(highlight_id=sid)
             self.script_updated.emit()
 
     def _on_delete_script(self):
@@ -452,10 +740,10 @@ class JsModule(QWidget):
             if self.js_service.delete_script(sid):
                 self._refresh_list()
                 self._clear_details()
+                self._refresh_preview()
                 self.script_deleted.emit()
 
     def _collect_folders(self):
-        """Gather distinct parent_folder values from all scripts."""
         folders = set()
         for s in self.js_service.get_all_scripts():
             f = s.get("parent_folder", "")
@@ -473,8 +761,7 @@ class JsModule(QWidget):
         result = self.js_service.deploy_bookmarks()
 
         if result["success"]:
-            if "preview" in result:
-                self.json_preview.setPlainText(result["preview"])
+            self._refresh_preview()
             QMessageBox.information(self, "部署成功", result["message"])
         else:
             QMessageBox.warning(self, "部署失败", result["message"])
@@ -494,7 +781,7 @@ class JsModule(QWidget):
         if not ok:
             QMessageBox.warning(self, "警告", "无法在 Chrome 中打开脚本")
 
-    # ---- Global path (called by main_window) ----
+    # ---- Global path ----
 
     def set_chrome_path(self, path: str):
         self.js_service.set_chrome_path(path)

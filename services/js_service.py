@@ -3,6 +3,7 @@
 import os
 import json
 import re
+import uuid
 import sqlite3
 import shutil
 import subprocess
@@ -10,7 +11,7 @@ from datetime import datetime
 from typing import Optional, List, Dict, Any
 from urllib.parse import urlparse
 
-ALLOWED_URL_SCHEMES = {'http', 'https'}
+ALLOWED_URL_SCHEMES = {'http', 'https', 'javascript', 'file'}
 
 def validate_url(url: str) -> bool:
     """Return True if url uses an allowed scheme."""
@@ -88,7 +89,7 @@ class JsService:
                    position: int = 0, description: str = "") -> int:
         """Add a new JS script bookmark."""
         if url and not validate_url(url):
-            raise ValueError(f"不支持的 URL 协议: {url}。仅支持 http/https。")
+            raise ValueError(f"不支持的 URL 协议: {url[:80]}...\n仅支持 http / https / javascript / file 协议。")
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
 
@@ -309,22 +310,27 @@ class JsService:
             return False
 
     def deploy_bookmarks(self, target_folder: str = "JS Scripts") -> Dict[str, Any]:
-        """Deploy bookmarks to Chrome with incremental merge.
+        """Deploy bookmarks to Chrome -- clean-slate replacement approach.
 
-        Reads existing Chrome Bookmarks, finds or creates target_folder
-        in the bookmark bar, replaces only that folder's children with
-        the managed bookmarks, preserves ALL other existing bookmarks.
+        Replaces the entire content of the target folder with fresh entries
+        built from the scripts database.  Deterministic UUID v5 GUIDs ensure
+        Chrome Sync recognises the same script across deploys.  Only user-
+        created subfolders (whose names don't collide with managed subfolders)
+        are preserved.
+
+        This "replace, don't merge" design makes duplicates structurally
+        impossible: every managed script produces exactly one entry, and
+        the old folder contents are discarded before the new list is written.
 
         Args:
             target_folder: Name of the folder in Chrome bookmarks bar.
 
         Returns:
-            Dict with 'success', 'message', and optional 'preview' keys.
+            Dict with 'success', 'message' keys.
         """
         if not self.chrome_path:
             return {"success": False, "message": "未设置 Chrome 书签路径"}
 
-        # Check Chrome is not running (would lock file)
         if self._is_chrome_running():
             return {
                 "success": False,
@@ -336,7 +342,6 @@ class JsService:
             return {"success": False, "message": "无法确定 Chrome 书签文件路径"}
         scripts = self.get_all_scripts()
 
-        # Read existing bookmarks or start fresh
         existing = self._read_existing_bookmarks()
         if existing is None:
             existing = {
@@ -348,33 +353,13 @@ class JsService:
                 "version": 1
             }
 
-        # Ensure bookmark_bar exists
-        if "bookmark_bar" not in existing.get("roots", {}):
-            existing["roots"]["bookmark_bar"] = {
-                "children": [], "name": "Bookmarks bar", "type": "folder"
-            }
+        bookmark_bar = existing.setdefault("roots", {}).setdefault(
+            "bookmark_bar", {"children": [], "name": "Bookmarks bar", "type": "folder"})
+        bookmark_bar.setdefault("children", [])
 
-        bookmark_bar = existing["roots"]["bookmark_bar"]
-        if "children" not in bookmark_bar:
-            bookmark_bar["children"] = []
-
-        # Clean up legacy managed folders (e.g., old "脚本" folder from earlier versions)
-        managed_guids = {"snx-root-" + target_folder}
-        legacy_names = {"脚本"}
-        bookmark_bar["children"] = [
-            c for c in bookmark_bar["children"]
-            if not (
-                c.get("type") == "folder"
-                and (
-                    c.get("name") in legacy_names
-                    or (c.get("guid", "").startswith("snx-root-")
-                        and c.get("guid") not in managed_guids)
-                )
-            )
-        ]
-
-        # Find or create the top-level JS Scripts folder
         now = datetime.now().isoformat()
+
+        # ---- Find / create root folder ----
         root_node = None
         for child in bookmark_bar["children"]:
             if child.get("name") == target_folder and child.get("type") == "folder":
@@ -390,86 +375,94 @@ class JsService:
                 "type": "folder",
             }
             bookmark_bar["children"].insert(0, root_node)
-        else:
-            # Ensure existing folder has the managed guid
-            root_node["guid"] = "snx-root-" + target_folder
 
-        # Group scripts: root folder vs subfolders
-        root_items = []
-        subfolders: Dict[str, list] = {}
+        # ---- Build brand-new entries for every managed script ----
+        _SNX_NS = uuid.UUID('a3f1b8c0-5e4d-7f6a-9b2c-1d3e5f7a8b9c')
+
+        root_entries = []
+        subfolder_entries: Dict[str, list] = {}
         for script in scripts:
-            sub = script.get("parent_folder", "").strip()
+            guid = str(uuid.uuid5(_SNX_NS, f"scriptnexus-js-{script['id']}"))
             entry = {
                 "date_added": script.get("created_at", now),
                 "date_modified": script.get("updated_at", now),
-                "guid": f"snx-js-{script['id']}",
+                "guid": guid,
                 "id": str(script["id"]),
                 "name": script["name"],
                 "type": "url",
                 "url": script["url"],
             }
+            sub = script.get("parent_folder", "").strip()
             if sub:
-                subfolders.setdefault(sub, []).append(entry)
+                subfolder_entries.setdefault(sub, []).append(entry)
             else:
-                root_items.append(entry)
+                root_entries.append(entry)
 
-        # Save original children before replacing, so we can reuse existing subfolders
-        original_children = root_node.get("children", [])
+        # ---- Assemble new children list (replace, not merge) ----
+        new_children: list = list(root_entries)
 
-        # Build root node: root items first, then subfolder nodes
-        new_children = list(root_items)
+        # Managed subfolders
+        for sub_name, items in subfolder_entries.items():
+            new_children.append({
+                "children": items,
+                "date_added": now,
+                "date_modified": now,
+                "guid": f"{target_folder}/{sub_name}",
+                "name": sub_name,
+                "type": "folder",
+            })
 
-        for sub_name, items in subfolders.items():
-            # Reuse existing subfolder to preserve its guid / date_added
-            sub_node = None
-            for child in original_children:
-                if child.get("name") == sub_name and child.get("type") == "folder":
-                    sub_node = child
-                    break
-            if sub_node is None:
-                sub_node = {
-                    "children": [],
-                    "date_added": now,
-                    "guid": f"{target_folder}/{sub_name}",
-                    "name": sub_name,
-                    "type": "folder",
-                }
-            sub_node["children"] = items
-            sub_node["date_modified"] = now
-            new_children.append(sub_node)
+        # Preserve user-created subfolders that don't collide with managed ones
+        for child in list(root_node.get("children", [])):
+            if child.get("type") == "folder" and \
+               child.get("name", "") not in subfolder_entries:
+                new_children.append(child)
 
+        # Replace folder contents entirely -- old url entries are discarded
         root_node["children"] = new_children
-
         root_node["date_modified"] = now
 
-        # Backup existing before writing
+        # Strip sync metadata so Chrome does a clean re-sync with our GUIDs
+        existing.pop("sync_metadata", None)
+        existing.pop("checksum", None)
+
+        # ---- Write ----
+        bookmarks_dir = os.path.dirname(bookmarks_file)
+
         if os.path.exists(bookmarks_file):
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            bookmarks_dir = os.path.dirname(bookmarks_file)
-            backup_file = os.path.join(bookmarks_dir, f"Bookmarks.bak.{timestamp}")
             try:
-                shutil.copy2(bookmarks_file, backup_file)
+                shutil.copy2(bookmarks_file,
+                             os.path.join(bookmarks_dir, f"Bookmarks.bak.{timestamp}"))
             except Exception:
                 pass
 
-        # Write merged bookmarks
+        # Delete journal files so Chrome doesn't replay stale changes
+        for jname in ("Bookmarks.journal", "Bookmarks-wal", "Bookmarks.shm"):
+            jpath = os.path.join(bookmarks_dir, jname)
+            try:
+                os.remove(jpath)
+            except OSError:
+                pass
+
         try:
             with open(bookmarks_file, 'w', encoding='utf-8') as f:
                 json.dump(existing, f, indent=2, ensure_ascii=False)
 
-            # Build preview for UI display
-            preview = json.dumps(existing, indent=2, ensure_ascii=False)
+            bak_path = os.path.join(bookmarks_dir, "Bookmarks.bak")
+            try:
+                shutil.copy2(bookmarks_file, bak_path)
+            except Exception:
+                pass
 
             return {
                 "success": True,
                 "message": f"已部署 {len(scripts)} 个书签到文件夹「{target_folder}」\n\n请重启 Chrome 浏览器查看。",
-                "preview": preview,
             }
         except PermissionError:
             return {"success": False, "message": "无法写入书签文件 — 请确认 Chrome 已关闭"}
         except Exception as e:
             return {"success": False, "message": f"部署失败: {e}"}
-
     def open_in_chrome(self, script_id: int) -> bool:
         """Open a script URL in Chrome.
 
