@@ -12,6 +12,7 @@ from PyQt6.QtGui import QFont, QIcon, QAction, QTextCursor, QSyntaxHighlighter, 
 
 from services.python_service import PythonService
 from services.dependency_service import DependencyService
+from ui.theme import set_button_variant
 
 
 class PythonSyntaxHighlighter(QSyntaxHighlighter):
@@ -1078,8 +1079,8 @@ class PythonModule(QWidget):
     def _setup_ui(self):
         """Set up the module UI."""
         layout = QVBoxLayout()
-        layout.setContentsMargins(10, 10, 10, 10)
-        layout.setSpacing(8)
+        layout.setContentsMargins(26, 22, 26, 22)
+        layout.setSpacing(12)
 
         # Title (compact with toolbar)
         title_layout = QHBoxLayout()
@@ -1087,17 +1088,8 @@ class PythonModule(QWidget):
         title_layout.setSpacing(10)
 
         title_label = QLabel("Python 脚本管理")
-        title_label.setStyleSheet("""
-            QLabel {
-                font-size: 16px;
-                font-weight: bold;
-                color: #333;
-                padding: 5px 10px;
-                background-color: #f0f0f0;
-                border-radius: 4px;
-            }
-        """)
-        title_label.setFixedHeight(35)
+        title_label.setStyleSheet("font-size: 21px; font-weight: 700; color: #202333;")
+        title_label.setFixedHeight(38)
         title_layout.addWidget(title_label)
         title_layout.addStretch()
 
@@ -1110,19 +1102,18 @@ class PythonModule(QWidget):
 
         self.add_btn = QPushButton("+ 新增")
         self.add_btn.setFixedHeight(35)
-        self.add_btn.setStyleSheet(self._get_button_style("#107c10"))
+        set_button_variant(self.add_btn, "primary")
         self.add_btn.clicked.connect(self._on_add_script)
         toolbar_layout.addWidget(self.add_btn)
 
         self.edit_btn = QPushButton("修改")
         self.edit_btn.setFixedHeight(35)
-        self.edit_btn.setStyleSheet(self._get_button_style("#0078D4"))
         self.edit_btn.clicked.connect(self._on_edit_script)
         toolbar_layout.addWidget(self.edit_btn)
 
         self.delete_btn = QPushButton("删除")
         self.delete_btn.setFixedHeight(35)
-        self.delete_btn.setStyleSheet(self._get_button_style("#d83b01"))
+        set_button_variant(self.delete_btn, "danger")
         self.delete_btn.clicked.connect(self._on_delete_script)
         toolbar_layout.addWidget(self.delete_btn)
 
@@ -1130,25 +1121,22 @@ class PythonModule(QWidget):
 
         self.run_btn = QPushButton("运行")
         self.run_btn.setFixedHeight(35)
-        self.run_btn.setStyleSheet(self._get_button_style("#009900"))
+        set_button_variant(self.run_btn, "success")
         self.run_btn.clicked.connect(self._on_run_script)
         toolbar_layout.addWidget(self.run_btn)
 
         self.check_deps_btn = QPushButton("检测依赖")
         self.check_deps_btn.setFixedHeight(35)
-        self.check_deps_btn.setStyleSheet(self._get_button_style("#8764b8"))
         self.check_deps_btn.clicked.connect(self._on_check_dependencies)
         toolbar_layout.addWidget(self.check_deps_btn)
 
         self.download_whl_btn = QPushButton("下载 WHL")
         self.download_whl_btn.setFixedHeight(35)
-        self.download_whl_btn.setStyleSheet(self._get_button_style("#009900"))
         self.download_whl_btn.clicked.connect(self._on_download_whl)
         toolbar_layout.addWidget(self.download_whl_btn)
 
         self.refresh_btn = QPushButton("刷新")
         self.refresh_btn.setFixedHeight(35)
-        self.refresh_btn.setStyleSheet(self._get_button_style("#666666"))
         self.refresh_btn.clicked.connect(self._on_refresh)
         toolbar_layout.addWidget(self.refresh_btn)
 
@@ -1165,8 +1153,8 @@ class PythonModule(QWidget):
         tree_layout.setSpacing(3)
 
         tree_label = QLabel("脚本列表")
-        tree_label.setStyleSheet("QLabel { font-weight: bold; padding: 3px; background-color: #e8e8e8; }")
-        tree_label.setFixedHeight(25)
+        tree_label.setStyleSheet("font-weight: 600; color: #555A70; padding: 7px 4px;")
+        tree_label.setFixedHeight(34)
         tree_layout.addWidget(tree_label)
 
         self.tree_widget = QTreeWidget()
@@ -1188,12 +1176,13 @@ class PythonModule(QWidget):
         editor_layout.setSpacing(3)
 
         editor_label = QLabel("代码编辑器")
-        editor_label.setStyleSheet("QLabel { font-weight: bold; padding: 3px; background-color: #e8e8e8; }")
-        editor_label.setFixedHeight(25)
+        editor_label.setStyleSheet("font-weight: 600; color: #555A70; padding: 7px 4px;")
+        editor_label.setFixedHeight(34)
         editor_layout.addWidget(editor_label)
 
         self.code_editor = QTextEdit()
         self.code_editor.setFont(QFont("Consolas", 10))
+        self.code_editor.setStyleSheet("QTextEdit { background: #FFFFFF; border: 1px solid #E3E6EF; border-radius: 8px; padding: 10px; }")
         self.code_editor.setReadOnly(True)
         self.code_editor.setPlaceholderText("选择脚本查看代码...")
         self._highlighter = PythonSyntaxHighlighter(self.code_editor.document())
@@ -1203,11 +1192,12 @@ class PythonModule(QWidget):
         self.script_info_label = QLabel("")
         self.script_info_label.setStyleSheet("""
             QLabel {
-                color: #666;
-                font-size: 9px;
-                padding: 5px;
-                background-color: #f5f5f5;
-                border: 1px solid #ddd;
+                color: #7B7F91;
+                font-size: 10px;
+                padding: 7px 9px;
+                background-color: #F8F9FC;
+                border: 1px solid #E3E6EF;
+                border-radius: 6px;
             }
         """)
         self.script_info_label.setWordWrap(True)
@@ -1227,8 +1217,8 @@ class PythonModule(QWidget):
         op_layout.setSpacing(0)
 
         output_label = QLabel("输出 — 每个脚本运行在独立的标签页中")
-        output_label.setStyleSheet("QLabel { font-weight: bold; padding: 3px 5px; background-color: #e8e8e8; }")
-        output_label.setFixedHeight(25)
+        output_label.setStyleSheet("font-weight: 600; color: #555A70; padding: 7px 4px;")
+        output_label.setFixedHeight(34)
         op_layout.addWidget(output_label)
 
         self.output_tabs = OutputTabWidget()

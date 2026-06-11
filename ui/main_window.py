@@ -38,8 +38,9 @@ class MainWindow(QMainWindow):
             parent: Parent widget
         """
         super().__init__(parent)
-        self.setWindowTitle("脚本管理器")
-        self.setMinimumSize(1024, 768)
+        self.setWindowTitle("ScriptNexus")
+        self.setMinimumSize(1100, 720)
+        self.resize(1280, 820)
 
         # Initialize services for settings dialog
         self.path_detection_service = None
@@ -60,6 +61,7 @@ class MainWindow(QMainWindow):
         self.js_module = None
 
         self._setup_ui()
+        self.nav_bar.navigate_to(NavBar.DASHBOARD)
         self._setup_system_tray()
         self._connect_signals()
 
@@ -158,7 +160,8 @@ class MainWindow(QMainWindow):
 
         # Stacked widget for pages
         self.stack = QStackedWidget()
-        self.stack.setStyleSheet("QStackedWidget { background-color: white; }")
+        self.stack.setObjectName("contentStack")
+        self.stack.setStyleSheet("QStackedWidget#contentStack { background: #F5F6FA; }")
 
         # Add pages - use placeholder widgets, modules initialized on demand
         self.dashboard = Dashboard()

@@ -20,6 +20,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
+from ui.theme import set_button_variant
 
 
 class SettingsDialog(QDialog):
@@ -73,6 +74,7 @@ class SettingsDialog(QDialog):
         )
         button_box.button(QDialogButtonBox.StandardButton.Save).setText("保存")
         button_box.button(QDialogButtonBox.StandardButton.Close).setText("关闭")
+        set_button_variant(button_box.button(QDialogButtonBox.StandardButton.Save), "primary")
 
         button_box.accepted.connect(self._on_save)
         button_box.rejected.connect(self.reject)

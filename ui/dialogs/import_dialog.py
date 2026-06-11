@@ -12,6 +12,7 @@ from PyQt6.QtWidgets import (
     QGroupBox, QTextEdit, QDialogButtonBox, QFrame,
 )
 from PyQt6.QtCore import Qt
+from ui.theme import set_button_variant
 
 
 class ImportDialog(QDialog):
@@ -37,7 +38,7 @@ class ImportDialog(QDialog):
 
         # Header
         header = QLabel("导入 ScriptNexus 数据包")
-        header.setStyleSheet("font-size: 15px; font-weight: bold; color: #333;")
+        header.setStyleSheet("font-size: 19px; font-weight: 700; color: #202333;")
         layout.addWidget(header)
 
         # File selector
@@ -120,7 +121,7 @@ class ImportDialog(QDialog):
         cancel_btn = btn_box.addButton("取消", QDialogButtonBox.ButtonRole.RejectRole)
         cancel_btn.clicked.connect(self.reject)
         import_btn = QPushButton("导入")
-        import_btn.setStyleSheet("QPushButton { background-color: #107c10; color: white; border: none; padding: 8px 20px; border-radius: 4px; } QPushButton:hover { background-color: #0e6b0e; }")
+        set_button_variant(import_btn, "primary")
         import_btn.clicked.connect(self._on_import)
         btn_box.addButton(import_btn, QDialogButtonBox.ButtonRole.AcceptRole)
         layout.addWidget(btn_box)

@@ -16,6 +16,8 @@ from PyQt6.QtGui import (
     QSyntaxHighlighter, QTextCharFormat, QKeySequence
 )
 from PyQt6.QtWidgets import QGraphicsItem
+from services.wps_service import WpsService
+from ui.theme import set_button_variant
 
 # ===== Ribbon Tree Item =====
 
@@ -1186,7 +1188,6 @@ class WpsModule(QWidget):
         super().__init__(parent)
         self.db_path = db_path
 
-        from services.wps_service import WpsService
         self.wps_service = WpsService(db_path)
 
         self.templates_dir = None
@@ -1207,8 +1208,8 @@ class WpsModule(QWidget):
     def _setup_ui(self):
         """Set up the module UI with horizontal preview layout."""
         layout = QVBoxLayout()
-        layout.setContentsMargins(10, 10, 10, 10)
-        layout.setSpacing(6)
+        layout.setContentsMargins(26, 22, 26, 22)
+        layout.setSpacing(12)
 
         # ===== Row 1: App selector (Word/Excel) =====
         app_layout = QHBoxLayout()
@@ -1230,21 +1231,19 @@ class WpsModule(QWidget):
         self.word_btn.setChecked(True)
         self.word_btn.setStyleSheet("""
             QPushButton {
-                border: none;
-                border-radius: 4px;
+                border: 1px solid #DADDEA;
+                border-radius: 8px;
                 font-size: 13px;
                 padding: 0;
             }
             QPushButton:checked {
-                background-color: #0078D4;
+                background-color: #5B5BD6;
                 color: white;
+                border-color: #5B5BD6;
             }
             QPushButton:!checked {
-                background-color: #E0E0E0;
-                color: #333;
-            }
-            QPushButton:hover {
-                opacity: 0.9;
+                background-color: #FFFFFF;
+                color: #555A70;
             }
         """)
         self.word_btn.clicked.connect(self._on_word_clicked)
@@ -1255,21 +1254,19 @@ class WpsModule(QWidget):
         self.excel_btn.setCheckable(True)
         self.excel_btn.setStyleSheet("""
             QPushButton {
-                border: none;
-                border-radius: 4px;
+                border: 1px solid #DADDEA;
+                border-radius: 8px;
                 font-size: 13px;
                 padding: 0;
             }
             QPushButton:checked {
-                background-color: #107C10;
+                background-color: #5B5BD6;
                 color: white;
+                border-color: #5B5BD6;
             }
             QPushButton:!checked {
-                background-color: #E0E0E0;
-                color: #333;
-            }
-            QPushButton:hover {
-                opacity: 0.9;
+                background-color: #FFFFFF;
+                color: #555A70;
             }
         """)
         self.excel_btn.clicked.connect(self._on_excel_clicked)
@@ -1280,19 +1277,7 @@ class WpsModule(QWidget):
         # Deploy button
         self.deploy_btn = QPushButton("一键部署")
         self.deploy_btn.setFixedSize(90, 32)
-        self.deploy_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #d83b01;
-                color: white;
-                border: none;
-                border-radius: 4px;
-                font-size: 12px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #c73501;
-            }
-        """)
+        set_button_variant(self.deploy_btn, "primary")
         self.deploy_btn.clicked.connect(self._on_deploy)
         app_layout.addWidget(self.deploy_btn)
 
@@ -1304,8 +1289,8 @@ class WpsModule(QWidget):
         preview_container.setStyleSheet("""
             QFrame {
                 background-color: #FFFFFF;
-                border: 1px solid #D4D4D4;
-                border-radius: 4px;
+                border: 1px solid #E3E6EF;
+                border-radius: 9px;
             }
         """)
         preview_layout = QVBoxLayout()
@@ -1318,8 +1303,8 @@ class WpsModule(QWidget):
             QLabel {
                 font-size: 11px;
                 font-weight: bold;
-                color: #666;
-                padding: 4px 8px;
+                color: #73778A;
+                padding: 6px 10px;
                 background: transparent;
                 border: none;
             }
@@ -1340,14 +1325,14 @@ class WpsModule(QWidget):
         left_panel = QFrame()
         left_panel.setStyleSheet("""
             QFrame {
-                background-color: #FAFAFA;
-                border: 1px solid #ddd;
-                border-radius: 4px;
+                background-color: #FFFFFF;
+                border: 1px solid #E3E6EF;
+                border-radius: 9px;
             }
         """)
         left_layout = QVBoxLayout()
-        left_layout.setContentsMargins(5, 5, 5, 5)
-        left_layout.setSpacing(5)
+        left_layout.setContentsMargins(10, 10, 10, 10)
+        left_layout.setSpacing(7)
 
         # 功能区结构标签 - 透明
         tree_title = QLabel("功能区结构")
@@ -1373,9 +1358,9 @@ class WpsModule(QWidget):
         right_panel = QFrame()
         right_panel.setStyleSheet("""
             QFrame {
-                background-color: #FAFAFA;
-                border: 1px solid #ddd;
-                border-radius: 4px;
+                background-color: #FFFFFF;
+                border: 1px solid #E3E6EF;
+                border-radius: 9px;
             }
         """)
         right_layout = QVBoxLayout()
@@ -1402,57 +1387,20 @@ class WpsModule(QWidget):
         # Add script button
         self.add_script_btn = QPushButton("+ 新增脚本")
         self.add_script_btn.setFixedHeight(30)
-        self.add_script_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #107C10;
-                color: white;
-                border: none;
-                padding: 4px 12px;
-                border-radius: 4px;
-                font-size: 12px;
-            }
-            QPushButton:hover {
-                background-color: #0d6d0d;
-            }
-        """)
+        set_button_variant(self.add_script_btn, "primary")
         self.add_script_btn.clicked.connect(self._on_add_script)
         script_header.addWidget(self.add_script_btn)
 
         # Delete script button
         self.delete_script_btn = QPushButton("删除")
         self.delete_script_btn.setFixedHeight(30)
-        self.delete_script_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #d83b01;
-                color: white;
-                border: none;
-                padding: 4px 12px;
-                border-radius: 4px;
-                font-size: 12px;
-            }
-            QPushButton:hover {
-                background-color: #c73501;
-            }
-        """)
+        set_button_variant(self.delete_script_btn, "danger")
         self.delete_script_btn.clicked.connect(self._on_delete_script)
         script_header.addWidget(self.delete_script_btn)
 
         # Edit script button
         self.edit_script_btn = QPushButton("编辑")
         self.edit_script_btn.setFixedHeight(30)
-        self.edit_script_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #0078D4;
-                color: white;
-                border: none;
-                padding: 4px 12px;
-                border-radius: 4px;
-                font-size: 12px;
-            }
-            QPushButton:hover {
-                background-color: #106EBE;
-            }
-        """)
         self.edit_script_btn.clicked.connect(self._on_edit_script)
         script_header.addWidget(self.edit_script_btn)
 
@@ -1462,16 +1410,6 @@ class WpsModule(QWidget):
         self.script_list = QListWidget()
         self.script_list.setAlternatingRowColors(True)
         self.script_list.itemSelectionChanged.connect(self._on_script_selected)
-        self.script_list.setStyleSheet("""
-            QListWidget {
-                border: 1px solid #ddd;
-                border-radius: 4px;
-                background-color: white;
-            }
-            QListWidget::item {
-                padding: 8px;
-            }
-        """)
         right_layout.addWidget(self.script_list, 1)
 
         # JSA Macro Editor

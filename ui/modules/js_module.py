@@ -12,6 +12,8 @@ from PyQt6.QtCore import Qt, pyqtSignal, QTimer
 from PyQt6.QtGui import (
     QFont, QPen, QBrush, QColor, QPainter, QFontMetrics, QPainterPath,
 )
+from services.js_service import JsService
+from ui.theme import set_button_variant
 
 
 # ===== Bookmark Preview =====
@@ -435,7 +437,6 @@ class JsModule(QWidget):
         super().__init__(parent)
         self.db_path = db_path
 
-        from services.js_service import JsService
         self.js_service = JsService(db_path)
 
         self._setup_ui()
@@ -444,8 +445,8 @@ class JsModule(QWidget):
 
     def _setup_ui(self):
         layout = QVBoxLayout()
-        layout.setContentsMargins(10, 10, 10, 10)
-        layout.setSpacing(8)
+        layout.setContentsMargins(26, 22, 26, 22)
+        layout.setSpacing(12)
 
         # ---- Title ----
         title_layout = QHBoxLayout()
@@ -453,17 +454,8 @@ class JsModule(QWidget):
         title_layout.setSpacing(10)
 
         title_label = QLabel("Chrome JS 脚本管理")
-        title_label.setStyleSheet("""
-            QLabel {
-                font-size: 16px;
-                font-weight: bold;
-                color: #333;
-                padding: 5px 10px;
-                background-color: #f0f0f0;
-                border-radius: 4px;
-            }
-        """)
-        title_label.setFixedHeight(35)
+        title_label.setStyleSheet("font-size: 21px; font-weight: 700; color: #202333;")
+        title_label.setFixedHeight(38)
         title_layout.addWidget(title_label)
         title_layout.addStretch()
 
@@ -476,19 +468,18 @@ class JsModule(QWidget):
 
         self.add_btn = QPushButton("+ 新增")
         self.add_btn.setFixedHeight(35)
-        self.add_btn.setStyleSheet(self._btn_style("#107c10"))
+        set_button_variant(self.add_btn, "primary")
         self.add_btn.clicked.connect(self._on_add_script)
         toolbar_layout.addWidget(self.add_btn)
 
         self.edit_btn = QPushButton("修改")
         self.edit_btn.setFixedHeight(35)
-        self.edit_btn.setStyleSheet(self._btn_style("#0078D4"))
         self.edit_btn.clicked.connect(self._on_edit_script)
         toolbar_layout.addWidget(self.edit_btn)
 
         self.delete_btn = QPushButton("删除")
         self.delete_btn.setFixedHeight(35)
-        self.delete_btn.setStyleSheet(self._btn_style("#d83b01"))
+        set_button_variant(self.delete_btn, "danger")
         self.delete_btn.clicked.connect(self._on_delete_script)
         toolbar_layout.addWidget(self.delete_btn)
 
@@ -496,13 +487,12 @@ class JsModule(QWidget):
 
         self.open_btn = QPushButton("在 Chrome 中打开")
         self.open_btn.setFixedHeight(35)
-        self.open_btn.setStyleSheet(self._btn_style("#4285F4"))
         self.open_btn.clicked.connect(self._on_open_in_chrome)
         toolbar_layout.addWidget(self.open_btn)
 
         self.deploy_btn = QPushButton("部署到 Chrome")
         self.deploy_btn.setFixedHeight(35)
-        self.deploy_btn.setStyleSheet(self._btn_style("#009900"))
+        set_button_variant(self.deploy_btn, "success")
         self.deploy_btn.clicked.connect(self._on_deploy_bookmarks)
         toolbar_layout.addWidget(self.deploy_btn)
 
@@ -513,7 +503,7 @@ class JsModule(QWidget):
         path_layout = QHBoxLayout()
         path_layout.setContentsMargins(0, 0, 0, 2)
         self.path_label = QLabel("书签路径：未设置")
-        self.path_label.setStyleSheet("color: #aaa; font-size: 11px;")
+        self.path_label.setStyleSheet("color: #8B8FA2; font-size: 11px; padding: 2px 1px;")
         path_layout.addWidget(self.path_label)
         path_layout.addStretch()
         layout.addLayout(path_layout, 0)
@@ -529,8 +519,8 @@ class JsModule(QWidget):
         pl.setSpacing(3)
 
         pl_hdr = QLabel("书签栏预览")
-        pl_hdr.setStyleSheet("font-weight: bold; padding: 3px; background: #e8e8e8;")
-        pl_hdr.setFixedHeight(24)
+        pl_hdr.setStyleSheet("font-weight: 600; color: #555A70; padding: 7px 4px;")
+        pl_hdr.setFixedHeight(34)
         pl.addWidget(pl_hdr)
 
         self.bookmark_preview = BookmarkPreviewView()
@@ -548,8 +538,8 @@ class JsModule(QWidget):
         ll.setSpacing(0)
 
         list_hdr = QLabel("脚本列表")
-        list_hdr.setStyleSheet("font-weight: bold; padding: 3px; background: #e8e8e8;")
-        list_hdr.setFixedHeight(24)
+        list_hdr.setStyleSheet("font-weight: 600; color: #555A70; padding: 7px 4px;")
+        list_hdr.setFixedHeight(34)
         ll.addWidget(list_hdr)
 
         self.script_list = QListWidget()
@@ -563,12 +553,12 @@ class JsModule(QWidget):
         detail_panel = QFrame()
         detail_panel.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         dl = QVBoxLayout()
-        dl.setContentsMargins(6, 4, 6, 4)
-        dl.setSpacing(3)
+        dl.setContentsMargins(12, 10, 12, 10)
+        dl.setSpacing(6)
 
         dl_hdr = QLabel("脚本信息")
-        dl_hdr.setStyleSheet("font-weight: bold; padding: 3px; background: #e8e8e8;")
-        dl_hdr.setFixedHeight(24)
+        dl_hdr.setStyleSheet("font-weight: 600; color: #555A70; padding: 7px 0;")
+        dl_hdr.setFixedHeight(34)
         dl.addWidget(dl_hdr)
 
         self.detail_form = QFormLayout()

@@ -1,107 +1,79 @@
-"""NavBar - Left navigation bar for the main window."""
+"""Left navigation for the ScriptNexus workspace."""
 
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QPushButton
-from PyQt6.QtCore import pyqtSignal, QObject
+from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel
 
 
 class NavBar(QWidget):
-    """Left navigation bar with fixed width and navigation buttons.
-
-    Navigation items:
-        - 首页 (Dashboard)
-        - Python 脚本 (Python Scripts)
-        - WPS 脚本 (WPS Scripts)
-        - Chrome JS脚本 (Chrome JS Scripts)
-        - 设置 (Settings)
-
-    Signals:
-        navigation_requested: Emitted when a navigation button is clicked,
-                              passes the target page name as argument
-    """
-
     navigation_requested = pyqtSignal(str)
 
-    # Navigation item constants
     DASHBOARD = "dashboard"
     PYTHON_SCRIPTS = "python_scripts"
     WPS_SCRIPTS = "wps_scripts"
     JS_SCRIPTS = "js_scripts"
 
     def __init__(self, parent=None):
-        """Initialize the navigation bar.
-
-        Args:
-            parent: Parent widget
-        """
         super().__init__(parent)
-        self.setFixedWidth(180)
+        self.setFixedWidth(218)
+        self.setObjectName("navBar")
         self._setup_ui()
 
     def _setup_ui(self):
-        """Set up the navigation bar UI."""
-        layout = QVBoxLayout()
-        layout.setSpacing(10)
-        layout.setContentsMargins(10, 20, 10, 20)
+        self.setStyleSheet("""
+            QWidget#navBar { background: #FFFFFF; border-right: 1px solid #E6E8F0; }
+            QLabel#brandMark { color: white; background: #5B5BD6; border-radius: 9px; font-size: 16px; font-weight: 700; }
+            QLabel#brandName { color: #242738; font-size: 16px; font-weight: 700; }
+            QLabel#brandTagline { color: #9296A8; font-size: 10px; }
+            QLabel#sectionLabel { color: #9A9DAE; font-size: 10px; font-weight: 600; padding-left: 8px; }
+            QPushButton { text-align: left; padding-left: 16px; border: none; border-radius: 8px; background: transparent; color: #686C7F; font-weight: 500; }
+            QPushButton:hover { background: #F4F4FA; color: #3D4052; }
+            QPushButton:checked { background: #EEEEFF; color: #4B4BC4; font-weight: 600; }
+        """)
+        layout = QVBoxLayout(self)
+        layout.setSpacing(6)
+        layout.setContentsMargins(14, 20, 14, 18)
 
-        # Create navigation buttons
-        self.buttons = {}
+        brand = QHBoxLayout()
+        brand.setSpacing(10)
+        mark = QLabel("SN")
+        mark.setObjectName("brandMark")
+        mark.setFixedSize(40, 40)
+        mark.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        brand.addWidget(mark)
+        brand_text = QVBoxLayout()
+        brand_text.setSpacing(0)
+        name = QLabel("ScriptNexus")
+        name.setObjectName("brandName")
+        tagline = QLabel("自动化脚本工作台")
+        tagline.setObjectName("brandTagline")
+        brand_text.addWidget(name)
+        brand_text.addWidget(tagline)
+        brand.addLayout(brand_text)
+        layout.addLayout(brand)
+        layout.addSpacing(24)
 
-        self.buttons[self.DASHBOARD] = self._create_button("首页")
-        self.buttons[self.PYTHON_SCRIPTS] = self._create_button("Python 脚本")
-        self.buttons[self.WPS_SCRIPTS] = self._create_button("WPS 脚本")
-        self.buttons[self.JS_SCRIPTS] = self._create_button("Chrome JS脚本")
+        section = QLabel("工作空间")
+        section.setObjectName("sectionLabel")
+        layout.addWidget(section)
+        layout.addSpacing(4)
 
-        # Add buttons to layout
-        for btn_name, btn in self.buttons.items():
-            layout.addWidget(btn)
-
-        # Add stretch to push buttons to top
+        self.buttons = {
+            self.DASHBOARD: self._create_button("总览", self.DASHBOARD),
+            self.PYTHON_SCRIPTS: self._create_button("Python 脚本", self.PYTHON_SCRIPTS),
+            self.WPS_SCRIPTS: self._create_button("WPS 脚本", self.WPS_SCRIPTS),
+            self.JS_SCRIPTS: self._create_button("Chrome JS", self.JS_SCRIPTS),
+        }
+        for button in self.buttons.values():
+            layout.addWidget(button)
         layout.addStretch()
 
-        self.setLayout(layout)
-
-    def _create_button(self, text):
-        """Create a navigation button.
-
-        Args:
-            text: Button text
-
-        Returns:
-            QPushButton instance
-        """
-        btn = QPushButton(text)
-        btn.setFixedHeight(45)
-        btn.clicked.connect(lambda: self._on_button_clicked(text))
-        return btn
-
-    def _on_button_clicked(self, text):
-        """Handle button click event.
-
-        Args:
-            text: Button text that was clicked
-        """
-        # Map button text to navigation name
-        name_map = {
-            "首页": self.DASHBOARD,
-            "Python 脚本": self.PYTHON_SCRIPTS,
-            "WPS 脚本": self.WPS_SCRIPTS,
-            "Chrome JS脚本": self.JS_SCRIPTS
-        }
-        name = name_map.get(text, text)
-        self.navigation_requested.emit(name)
+    def _create_button(self, text, name):
+        button = QPushButton(text)
+        button.setFixedHeight(42)
+        button.setCheckable(True)
+        button.clicked.connect(lambda checked=False, target=name: self.navigation_requested.emit(target))
+        return button
 
     def navigate_to(self, name):
-        """Navigate to the specified page.
-
-        Args:
-            name: Target page name (dashboard, python_scripts, wps_scripts, js_scripts)
-        """
-        # Update button styles to show active state
-        for btn_name, btn in self.buttons.items():
-            if btn_name == name:
-                btn.setStyleSheet("QPushButton { background-color: #0078D4; color: white; }")
-            else:
-                btn.setStyleSheet("QPushButton { background-color: transparent; }")
-
-        # Don't emit signal here - this method is called programmatically, not by user click
-        # The signal is only emitted when user clicks a button (in _on_button_clicked)
+        for button_name, button in self.buttons.items():
+            button.setChecked(button_name == name)

@@ -10,6 +10,7 @@ from PyQt6.QtWidgets import (
     QDialogButtonBox, QFrame,
 )
 from PyQt6.QtCore import Qt
+from ui.theme import set_button_variant
 
 
 class ExportDialog(QDialog):
@@ -35,7 +36,7 @@ class ExportDialog(QDialog):
 
         # Header
         header = QLabel("选择要导出的内容")
-        header.setStyleSheet("font-size: 15px; font-weight: bold; color: #333;")
+        header.setStyleSheet("font-size: 19px; font-weight: 700; color: #202333;")
         layout.addWidget(header)
 
         hint = QLabel("勾选需要导出的模块和数据类型，未勾选的内容将不会被导出。")
@@ -135,7 +136,7 @@ class ExportDialog(QDialog):
         cancel_btn = btn_box.addButton("取消", QDialogButtonBox.ButtonRole.RejectRole)
         cancel_btn.clicked.connect(self.reject)
         export_btn = QPushButton("导出")
-        export_btn.setStyleSheet("QPushButton { background-color: #0078D4; color: white; border: none; padding: 8px 20px; border-radius: 4px; } QPushButton:hover { background-color: #006cbd; }")
+        set_button_variant(export_btn, "primary")
         export_btn.clicked.connect(self._on_export)
         btn_box.addButton(export_btn, QDialogButtonBox.ButtonRole.AcceptRole)
         layout.addWidget(btn_box)

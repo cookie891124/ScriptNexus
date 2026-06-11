@@ -26,6 +26,7 @@ from services.js_service import JsService
 from services.dependency_service import DependencyService
 from ui.main_window import MainWindow
 from ui.system_tray import SystemTray
+from ui.theme import APP_STYLESHEET
 
 
 def main():
@@ -40,8 +41,9 @@ def main():
     """
     # Create QApplication
     app = QApplication(sys.argv)
-    app.setApplicationName("脚本管理器")
+    app.setApplicationName("ScriptNexus")
     app.setOrganizationName("ScriptNexus")
+    app.setStyleSheet(APP_STYLESHEET)
 
     # Determine base and data directories
     # - base_dir: Read-only resources (templates, icons)
