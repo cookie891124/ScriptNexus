@@ -114,20 +114,22 @@ class JsaSyntaxHighlighter(QSyntaxHighlighter):
 class RibbonPreviewView(QGraphicsView):
     """Visual ribbon preview showing the selected tab's structure in WPS style."""
 
+    PREVIEW_HEIGHT = 104
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.scene = QGraphicsScene()
         self.setScene(self.scene)
         self.setFrameShape(QGraphicsView.Shape.NoFrame)
-        self.setBackgroundBrush(QBrush(QColor("#FFFFFF")))
+        self.setBackgroundBrush(QBrush(QColor("#F8F9FC")))
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setRenderHint(QPainter.RenderHint.Antialiasing)
-        self.setMinimumHeight(90)
+        self.setMinimumHeight(self.PREVIEW_HEIGHT)
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
-        self.scene.setSceneRect(0, 0, self.width(), 90)
+        self.scene.setSceneRect(0, 0, self.width(), self.PREVIEW_HEIGHT)
 
     def clear_preview(self):
         """Clear all items from preview."""
@@ -138,128 +140,120 @@ class RibbonPreviewView(QGraphicsView):
         self.scene.clear()
 
         w = self.width()
-        h = 90
+        h = self.PREVIEW_HEIGHT
 
-        # Draw main ribbon background (white)
+        # Draw main ribbon background.
         ribbon_bg = QGraphicsRectItem()
         ribbon_bg.setRect(0, 0, w, h)
-        ribbon_bg.setBrush(QBrush(QColor("#FFFFFF")))
-        ribbon_bg.setPen(QPen(QColor("#D4D4D4"), 1))
+        ribbon_bg.setBrush(QBrush(QColor("#F8F9FC")))
+        ribbon_bg.setPen(QPen(QColor("#E3E6EF"), 1))
         ribbon_bg.setZValue(-2)
         self.scene.addItem(ribbon_bg)
 
-        # Draw tab bar area (top strip) - 紧贴标签
+        # Draw tab bar area as a soft strip instead of a hard grey block.
         tab_bar = QGraphicsRectItem()
-        tab_bar.setRect(0, 0, w, 28)
-        tab_bar.setBrush(QBrush(QColor("#F3F3F3")))
+        tab_bar.setRect(0, 0, w, 30)
+        tab_bar.setBrush(QBrush(QColor("#FFFFFF")))
         tab_bar.setPen(QPen(Qt.PenStyle.NoPen))
         tab_bar.setZValue(-1)
         self.scene.addItem(tab_bar)
 
+        tab_font = QFont("Microsoft YaHei UI", 9, QFont.Weight.Bold)
+        fm = QFontMetrics(tab_font)
+        tab_w = max(72, min(fm.horizontalAdvance(tab_name) + 24, 148))
+        selected_tab_bg = QGraphicsRectItem()
+        selected_tab_bg.setRect(12, 6, tab_w, 24)
+        selected_tab_bg.setBrush(QBrush(QColor("#FFFFFF")))
+        selected_tab_bg.setPen(QPen(QColor("#DADDEA"), 1))
+        self.scene.addItem(selected_tab_bg)
+
+        tab_text = QGraphicsSimpleTextItem(tab_name, selected_tab_bg)
+        tab_text.setPos(24, 10)
+        tab_text.setFont(tab_font)
+        tab_text.setBrush(QColor("#31354A"))
+
         if not groups_with_buttons:
-            # 仅显示当前Tab标签
-            tab_font = QFont("Segoe UI", 9, QFont.Weight.Bold)
-            fm = QFontMetrics(tab_font)
-            tab_w = max(60, min(fm.horizontalAdvance(tab_name) + 16, 120))
-            tab_h = 24
-            tab_x = 10
-            tab_y = 2
-
-            selected_tab_bg = QGraphicsRectItem()
-            selected_tab_bg.setRect(tab_x, tab_y, tab_w, tab_h)
-            selected_tab_bg.setBrush(QBrush(QColor("#FFFFFF")))
-            selected_tab_bg.setPen(QPen(QColor("#D4D4D4"), 1))
-            self.scene.addItem(selected_tab_bg)
-
-            tab_text = QGraphicsSimpleTextItem(tab_name, selected_tab_bg)
-            text_w = fm.horizontalAdvance(tab_name)
-            tab_text.setPos(tab_x + (tab_w - text_w) / 2, tab_y + 5)
-            tab_text.setFont(tab_font)
-            tab_text.setBrush(QColor("#1E1E1E"))
+            empty_font = QFont("Microsoft YaHei UI", 9)
+            empty_text = QGraphicsSimpleTextItem("暂无分组，右键功能区结构可新增")
+            empty_text.setFont(empty_font)
+            empty_text.setBrush(QColor("#8A90A3"))
+            empty_text.setPos(18, 58)
+            self.scene.addItem(empty_text)
             return
 
-        # Draw groups and buttons - 紧凑布局，按钮宽度自适应
-        x_offset = 8
-        y_offset = 30
+        # Draw groups and buttons with more breathing room and softer borders.
+        x_offset = 12
+        y_offset = 36
 
-        btn_font = QFont("Segoe UI", 8)
+        btn_font = QFont("Microsoft YaHei UI", 8)
         btn_fm = QFontMetrics(btn_font)
-        group_font = QFont("Segoe UI", 8, QFont.Weight.Bold)
+        group_font = QFont("Microsoft YaHei UI", 8, QFont.Weight.Bold)
 
         for group_name, button_labels in groups_with_buttons:
-            # 计算按钮宽度 - 根据文本长度自适应
             btn_widths = []
             for label in button_labels:
                 text_w = btn_fm.horizontalAdvance(label)
-                btn_w = max(45, min(text_w + 18, 100))  # 最小45，最大100
+                btn_w = max(54, min(text_w + 24, 112))
                 btn_widths.append(btn_w)
 
-            # 每行最多显示按钮数量
             max_per_row = 3
             rows = (len(button_labels) + 2) // 3
 
-            # 计算分组宽度
             max_row_width = 0
             for i in range(rows):
                 row_start = i * max_per_row
                 row_end = min(row_start + max_per_row, len(button_labels))
-                row_width = sum(btn_widths[row_start:row_end]) + (row_end - row_start - 1) * 4 + 10
+                row_width = sum(btn_widths[row_start:row_end]) + (row_end - row_start - 1) * 6 + 16
                 max_row_width = max(max_row_width, row_width)
 
-            group_label_w = btn_fm.horizontalAdvance(group_name) + 12
-            group_width = max(group_label_w + 6, max_row_width)
-            group_height = 18 + rows * 22  # 紧凑高度
+            group_label_w = btn_fm.horizontalAdvance(group_name) + 18
+            group_width = max(group_label_w, max_row_width)
+            group_height = 22 + rows * 24
 
-            # Group background
             group_rect = QGraphicsRectItem()
             group_rect.setRect(x_offset, y_offset, group_width, group_height)
-            group_rect.setBrush(QBrush(QColor("#F8F8F8")))
-            group_rect.setPen(QPen(QColor("#E0E0E0"), 1))
+            group_rect.setBrush(QBrush(QColor("#FFFFFF")))
+            group_rect.setPen(QPen(QColor("#DDE1EA"), 1))
             self.scene.addItem(group_rect)
 
-            # Group label
             group_label = QGraphicsSimpleTextItem(group_name, group_rect)
-            group_label.setPos(x_offset + 4, y_offset + 2)
+            group_label.setPos(x_offset + 8, y_offset + 4)
             group_label.setFont(group_font)
-            group_label.setBrush(QColor("#666666"))
+            group_label.setBrush(QColor("#555A70"))
 
-            # Buttons - 自适应宽度
-            btn_y = y_offset + 16
+            btn_y = y_offset + 24
             col = 0
-            btn_x = x_offset + 4
+            btn_x = x_offset + 8
 
             for idx, btn_label in enumerate(button_labels):
                 btn_w = btn_widths[idx]
 
                 if col >= max_per_row:
                     col = 0
-                    btn_x = x_offset + 4
-                    btn_y += 22
+                    btn_x = x_offset + 8
+                    btn_y += 24
 
-                # Button background
                 btn_rect = QGraphicsRectItem()
-                btn_rect.setRect(btn_x, btn_y, btn_w, 18)
-                btn_rect.setBrush(QBrush(QColor("#FFFFFF")))
-                btn_rect.setPen(QPen(QColor("#C8C8C8"), 1))
+                btn_rect.setRect(btn_x, btn_y, btn_w, 20)
+                btn_rect.setBrush(QBrush(QColor("#F8FAFF")))
+                btn_rect.setPen(QPen(QColor("#D3D8E8"), 1))
                 self.scene.addItem(btn_rect)
 
-                # Button icon placeholder
                 icon_rect = QGraphicsRectItem()
-                icon_rect.setRect(btn_x + 2, btn_y + 3, 10, 10)
-                icon_rect.setBrush(QBrush(QColor("#4A90D9")))
+                icon_rect.setRect(btn_x + 5, btn_y + 6, 8, 8)
+                icon_rect.setBrush(QBrush(QColor("#5B8FD9")))
                 icon_rect.setPen(QPen(Qt.PenStyle.NoPen))
                 self.scene.addItem(icon_rect)
 
-                # Button text - 显示完整文本（已自适应宽度）
                 btn_text = QGraphicsSimpleTextItem(btn_label, btn_rect)
-                btn_text.setPos(btn_x + 14, btn_y + 4)
+                btn_text.setPos(btn_x + 18, btn_y + 4)
                 btn_text.setFont(btn_font)
-                btn_text.setBrush(QColor("#333333"))
+                btn_text.setBrush(QColor("#31354A"))
 
-                btn_x += btn_w + 4
+                btn_x += btn_w + 6
                 col += 1
 
-            x_offset += group_width + 6
+            x_offset += group_width + 8
 
 
 # ===== Ribbon Tree Panel =====
@@ -283,50 +277,73 @@ class RibbonTreePanel(QWidget):
     def _setup_ui(self):
         layout = QVBoxLayout()
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(3)
+        layout.setSpacing(6)
 
         # Header - tabs row + group add button
         header_widget = QWidget()
-        header_widget.setStyleSheet("background-color: #E0E0E0;")
+        header_widget.setStyleSheet("""
+            QWidget {
+                background-color: #F7F8FB;
+                border: 1px solid #E7E9F2;
+                border-radius: 7px;
+            }
+        """)
         header_layout = QVBoxLayout()
-        header_layout.setContentsMargins(5, 2, 5, 2)
-        header_layout.setSpacing(2)
+        header_layout.setContentsMargins(6, 5, 6, 5)
+        header_layout.setSpacing(4)
 
         # Tabs row
         self.tab_container = QWidget()
-        self.tab_container.setStyleSheet("background-color: transparent;")
+        self.tab_container.setStyleSheet("background: transparent; border: none;")
         self.tab_layout = QHBoxLayout()
         self.tab_layout.setContentsMargins(0, 0, 0, 0)
-        self.tab_layout.setSpacing(2)
+        self.tab_layout.setSpacing(5)
         self.tab_container.setLayout(self.tab_layout)
         header_layout.addWidget(self.tab_container)
 
         header_widget.setLayout(header_layout)
         layout.addWidget(header_widget)
 
-        # Reorder buttons — compact bar between header and tree
+        # Reorder buttons - compact toolbar between header and tree
         reorder_bar = QWidget()
-        reorder_bar.setFixedHeight(26)
-        reorder_bar.setStyleSheet("background-color: #f5f5f5; border-bottom: 1px solid #ddd;")
+        reorder_bar.setFixedHeight(30)
+        reorder_bar.setStyleSheet("""
+            QWidget {
+                background-color: #FFFFFF;
+                border: 1px solid #E7E9F2;
+                border-radius: 7px;
+            }
+        """)
         reorder_layout = QHBoxLayout()
-        reorder_layout.setContentsMargins(8, 0, 8, 0)
-        reorder_layout.setSpacing(4)
+        reorder_layout.setContentsMargins(8, 3, 8, 3)
+        reorder_layout.setSpacing(6)
 
-        lbl = QLabel("排序:")
-        lbl.setStyleSheet("font-size: 10px; color: #888; border: none;")
+        lbl = QLabel("排序")
+        lbl.setStyleSheet("font-size: 11px; color: #73778A; border: none; background: transparent;")
         reorder_layout.addWidget(lbl)
 
         self.btn_up = QPushButton("↑")
-        self.btn_up.setFixedSize(26, 20)
+        self.btn_up.setFixedSize(28, 22)
         self.btn_up.setToolTip("上移")
-        self.btn_up.setStyleSheet("QPushButton { font-size: 12px; background: #e8e8e8; border: 1px solid #ccc; border-radius: 3px; } QPushButton:hover { background: #d0d0d0; }")
+        self.btn_up.setStyleSheet("""
+            QPushButton {
+                min-height: 0;
+                padding: 0;
+                font-size: 13px;
+                color: #555A70;
+                background: #F6F7FB;
+                border: 1px solid #DADDEA;
+                border-radius: 6px;
+            }
+            QPushButton:hover { background: #EEEEFF; border-color: #CFCFEF; color: #4B4BC4; }
+        """)
         self.btn_up.clicked.connect(self._move_up)
         reorder_layout.addWidget(self.btn_up)
 
         self.btn_down = QPushButton("↓")
-        self.btn_down.setFixedSize(26, 20)
+        self.btn_down.setFixedSize(28, 22)
         self.btn_down.setToolTip("下移")
-        self.btn_down.setStyleSheet("QPushButton { font-size: 12px; background: #e8e8e8; border: 1px solid #ccc; border-radius: 3px; } QPushButton:hover { background: #d0d0d0; }")
+        self.btn_down.setStyleSheet(self.btn_up.styleSheet())
         self.btn_down.clicked.connect(self._move_down)
         reorder_layout.addWidget(self.btn_down)
 
@@ -343,12 +360,18 @@ class RibbonTreePanel(QWidget):
         self.tree.itemClicked.connect(self._on_item_clicked)
         self.tree.setStyleSheet("""
             QTreeWidget {
-                border: none;
-                background-color: #FAFAFA;
+                border: 1px solid #E7E9F2;
+                border-radius: 7px;
+                background-color: #FFFFFF;
+                alternate-background-color: #FAFBFE;
             }
             QTreeWidget::item {
-                padding: 4px;
+                min-height: 28px;
+                padding: 4px 7px;
+                border-radius: 5px;
             }
+            QTreeWidget::item:hover { background: #F2F2FC; }
+            QTreeWidget::item:selected { color: #4141B7; background: #EAEAFC; }
         """)
         layout.addWidget(self.tree, 1)
 
@@ -404,18 +427,22 @@ class RibbonTreePanel(QWidget):
                     self.current_tab_name = tab["name"]
                 tab_btn.setStyleSheet("""
                     QToolButton {
-                        background-color: #717171;
-                        color: white;
-                        border: none;
-                        border-radius: 3px;
+                        background-color: #FFFFFF;
+                        color: #555A70;
+                        border: 1px solid #DADDEA;
+                        border-radius: 6px;
                         padding: 0 12px;
                         font-size: 12px;
                     }
                     QToolButton:hover {
-                        background-color: #555;
+                        background-color: #F2F2FC;
+                        border-color: #CFCFEF;
                     }
                     QToolButton:checked {
-                        background-color: #2D5E8C;
+                        background-color: #5B5BD6;
+                        border-color: #5B5BD6;
+                        color: #FFFFFF;
+                        font-weight: 600;
                     }
                 """)
                 # Store tab info
@@ -1290,7 +1317,7 @@ class WpsModule(QWidget):
             QFrame {
                 background-color: #FFFFFF;
                 border: 1px solid #E3E6EF;
-                border-radius: 9px;
+                border-radius: 8px;
             }
         """)
         preview_layout = QVBoxLayout()
@@ -1304,7 +1331,7 @@ class WpsModule(QWidget):
                 font-size: 11px;
                 font-weight: bold;
                 color: #73778A;
-                padding: 6px 10px;
+                padding: 7px 14px;
                 background: transparent;
                 border: none;
             }
@@ -1315,7 +1342,7 @@ class WpsModule(QWidget):
         preview_layout.addWidget(self.ribbon_preview)
 
         preview_container.setLayout(preview_layout)
-        preview_container.setFixedHeight(95)
+        preview_container.setFixedHeight(128)
         layout.addWidget(preview_container)
 
         # ===== Row 3: Main content - Left (Ribbon Tree) + Right (Script Manager) =====
@@ -1327,12 +1354,12 @@ class WpsModule(QWidget):
             QFrame {
                 background-color: #FFFFFF;
                 border: 1px solid #E3E6EF;
-                border-radius: 9px;
+                border-radius: 8px;
             }
         """)
         left_layout = QVBoxLayout()
-        left_layout.setContentsMargins(10, 10, 10, 10)
-        left_layout.setSpacing(7)
+        left_layout.setContentsMargins(12, 12, 12, 12)
+        left_layout.setSpacing(9)
 
         # 功能区结构标签 - 透明
         tree_title = QLabel("功能区结构")
@@ -1340,7 +1367,7 @@ class WpsModule(QWidget):
             QLabel {
                 font-size: 13px;
                 font-weight: bold;
-                color: #333;
+                color: #202333;
                 background: transparent;
                 border: none;
                 padding: 2px 0;
@@ -1360,12 +1387,12 @@ class WpsModule(QWidget):
             QFrame {
                 background-color: #FFFFFF;
                 border: 1px solid #E3E6EF;
-                border-radius: 9px;
+                border-radius: 8px;
             }
         """)
         right_layout = QVBoxLayout()
-        right_layout.setContentsMargins(10, 10, 10, 10)
-        right_layout.setSpacing(8)
+        right_layout.setContentsMargins(14, 14, 14, 14)
+        right_layout.setSpacing(10)
 
         # Script list header
         script_header = QHBoxLayout()
@@ -1376,6 +1403,7 @@ class WpsModule(QWidget):
             QLabel {
                 font-weight: bold;
                 font-size: 14px;
+                color: #202333;
                 background: transparent;
                 border: none;
             }
@@ -1386,21 +1414,24 @@ class WpsModule(QWidget):
 
         # Add script button
         self.add_script_btn = QPushButton("+ 新增脚本")
-        self.add_script_btn.setFixedHeight(30)
+        self.add_script_btn.setFixedHeight(34)
+        self.add_script_btn.setMinimumWidth(120)
         set_button_variant(self.add_script_btn, "primary")
         self.add_script_btn.clicked.connect(self._on_add_script)
         script_header.addWidget(self.add_script_btn)
 
         # Delete script button
         self.delete_script_btn = QPushButton("删除")
-        self.delete_script_btn.setFixedHeight(30)
+        self.delete_script_btn.setFixedHeight(34)
+        self.delete_script_btn.setMinimumWidth(74)
         set_button_variant(self.delete_script_btn, "danger")
         self.delete_script_btn.clicked.connect(self._on_delete_script)
         script_header.addWidget(self.delete_script_btn)
 
         # Edit script button
         self.edit_script_btn = QPushButton("编辑")
-        self.edit_script_btn.setFixedHeight(30)
+        self.edit_script_btn.setFixedHeight(34)
+        self.edit_script_btn.setMinimumWidth(74)
         self.edit_script_btn.clicked.connect(self._on_edit_script)
         script_header.addWidget(self.edit_script_btn)
 
@@ -1409,6 +1440,27 @@ class WpsModule(QWidget):
         # Script list
         self.script_list = QListWidget()
         self.script_list.setAlternatingRowColors(True)
+        self.script_list.setSpacing(4)
+        self.script_list.setStyleSheet("""
+            QListWidget {
+                background: #FFFFFF;
+                alternate-background-color: #FAFBFE;
+                border: 1px solid #E7E9F2;
+                border-radius: 8px;
+                padding: 6px;
+            }
+            QListWidget::item {
+                min-height: 66px;
+                padding: 7px 10px;
+                border-radius: 6px;
+                color: #202333;
+            }
+            QListWidget::item:hover { background: #F4F5FF; }
+            QListWidget::item:selected {
+                background: #EAEAFC;
+                color: #2929A6;
+            }
+        """)
         self.script_list.itemSelectionChanged.connect(self._on_script_selected)
         right_layout.addWidget(self.script_list, 1)
 
